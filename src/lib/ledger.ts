@@ -135,7 +135,7 @@ export function parseCSV(text: string): Charge[] {
   const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (!lines.length) return [];
   const split = (l: string) => l.match(/("([^"]|"")*"|[^,]*)(,|$)/g)!.map((s) => s.replace(/,$/, "").replace(/^"|"$/g, "").trim()).filter((_, i, a) => i < a.length - 1 || _ !== "");
-  const head = split(lines[0]).map((h) => h.toLowerCase());
+  const head = split(lines[0] ?? "").map((h) => h.toLowerCase());
   const idx = (...k: string[]) => head.findIndex((h) => k.some((x) => h.includes(x)));
   const hasHead = idx("amount", "merchant", "date", "description") >= 0;
   const im = hasHead ? idx("merchant", "payee", "vendor", "name") : 0;
