@@ -78,8 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LedgerGhost" },
+      { title: "LedgerGhost — Autonomous billing auditor" },
       { name: "description", content: "Autonomous audits for hidden fees and creeping charges." },
+      { property: "og:title", content: "LedgerGhost — Autonomous billing auditor" },
+      { property: "og:description", content: "Autonomous audits for hidden fees and creeping charges." },
+      { property: "og:site_name", content: "LedgerGhost" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "apple-mobile-web-app-title", content: "LedgerGhost" },
