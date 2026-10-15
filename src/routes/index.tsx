@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Ghost, Upload, Sparkles, Settings as Cog, Moon, Sun, Plus, Trash2, ArrowLeft, ShieldAlert,
-  ShieldCheck, AlertTriangle, X, Copy, Download, FileText, Loader2, Check, ScanSearch,
+  ShieldCheck, AlertTriangle, X, Copy, Download, FileText, Loader2, Check, ScanSearch, History,
 } from "lucide-react";
 import {
   type Charge, type Finding, type Settings, type Status, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
@@ -26,6 +26,9 @@ export const Route = createFileRoute("/")({
 type Step = "home" | "review" | "results";
 const money = (n: number) => `$${n.toFixed(2)}`;
 
+type AuditRecord = { id: string; at: number; source: string; charges: Charge[]; findings: Finding[] };
+const loadHistory = (): AuditRecord[] => { try { return JSON.parse(localStorage.getItem("lg-history") ?? "[]"); } catch { return []; } };
+
 function App() {
   const [step, setStep] = useState<Step>("home");
   const [charges, setCharges] = useState<Charge[]>([]);
@@ -36,6 +39,20 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sourceName, setSourceName] = useState("");
+  const [history, setHistory] = useState<AuditRecord[]>(loadHistory);
+
+  const saveRecord = (source: string, list: Charge[], f: Finding[]) => {
+    const rec: AuditRecord = { id: uid(), at: Date.now(), source, charges: list, findings: f };
+    const next = [rec, ...history].slice(0, 20);
+    setHistory(next);
+    localStorage.setItem("lg-history", JSON.stringify(next));
+  };
+  const deleteRecord = (id: string) => {
+    const next = history.filter((r) => r.id !== id);
+    setHistory(next);
+    localStorage.setItem("lg-history", JSON.stringify(next));
+  };
+  const openRecord = (r: AuditRecord) => { setCharges(r.charges); setFindings(r.findings); setSourceName(r.source); setStep("results"); };
 
   useEffect(() => {
     const s = localStorage.getItem("lg-settings");
@@ -53,17 +70,18 @@ function App() {
   }, [dark]);
   const saveSettings = (s: Settings) => { setSettings(s); localStorage.setItem("lg-settings", JSON.stringify(s)); };
 
-  const runAudit = async (list = charges) => {
+  const runAudit = async (list = charges, source = sourceName) => {
     setBusy(true); setError("");
     try {
       await new Promise((r) => setTimeout(r, 1100));
       const f = settings.mock ? mockAudit(list) : await liveAudit(settings, list);
       setFindings(f); setStep("results");
+      saveRecord(source || "Untitled audit", list, f);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
 
-  const trySample = () => { const s = sampleCharges(); setCharges(s); setSourceName("Sample statement — Sept 2026"); runAudit(s); };
+  const trySample = () => { const s = sampleCharges(); setSourceName("Sample statement — Sept 2026"); setCharges(s); runAudit(s, "Sample statement — Sept 2026"); };
 
   return (
     <div className="min-h-screen">
@@ -93,7 +111,7 @@ function App() {
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
+        {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} history={history} onOpenRecord={openRecord} onDeleteRecord={deleteRecord} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
         {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}
         {step === "results" && <Results charges={charges} findings={findings} settings={settings} onBack={() => setStep("review")} />}
       </main>
@@ -107,63 +125,136 @@ function IconBtn({ children, label, onClick }: { children: React.ReactNode; labe
   return <button aria-label={label} onClick={onClick} className="grid h-9 w-9 place-items-center rounded-lg border bg-card hover:bg-secondary">{children}</button>;
 }
 
-function Home({ busy, settings, onSample, onLoaded }: { busy: boolean; settings: Settings; onSample: () => void; onLoaded: (c: Charge[], name: string) => void }) {
+function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDeleteRecord }: {
+  busy: boolean; settings: Settings; onSample: () => void; onLoaded: (c: Charge[], name: string) => void;
+  history: AuditRecord[]; onOpenRecord: (r: AuditRecord) => void; onDeleteRecord: (id: string) => void;
+}) {
   const ref = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [note, setNote] = useState("");
   const [parsing, setParsing] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState("");
 
-  const handle = async (file?: File) => {
-    if (!file) return;
+  const stage = (list: FileList | null) => {
+    if (!list?.length) return;
     setNote("");
+    setFiles((prev) => {
+      const names = new Set(prev.map((f) => f.name + f.size));
+      return [...prev, ...Array.from(list).filter((f) => !names.has(f.name + f.size))];
+    });
+  };
+
+  const parseOne = async (file: File): Promise<Charge[]> => {
     if (file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv") {
       const rows = parseCSV(await file.text());
-      if (!rows.length) return setNote("Couldn't find any charges in that CSV.");
-      onLoaded(rows, file.name);
-    } else if (file.name.toLowerCase().endsWith(".pdf") && !settings.mock) {
-      setParsing(true);
-      try {
-        const text = await extractPdfText(file);
-        if (!text.trim()) throw new Error("No readable text in that PDF (scanned documents aren't supported yet).");
-        const rows = await liveParse(settings, text);
-        if (!rows.length) throw new Error("The parser found no charges in that PDF.");
-        onLoaded(rows, file.name);
-      } catch (e) { setNote((e as Error).message); }
-      finally { setParsing(false); }
-    } else {
-      // Mock mode or image: simulate extraction with the sample set
-      onLoaded(sampleCharges(), `${file.name} (simulated extraction)`);
+      if (!rows.length) throw new Error(`Couldn't find any charges in ${file.name}.`);
+      return rows;
     }
+    if (file.name.toLowerCase().endsWith(".pdf") && !settings.mock) {
+      const text = await extractPdfText(file);
+      if (!text.trim()) throw new Error(`${file.name}: no readable text (scanned documents aren't supported yet).`);
+      const rows = await liveParse(settings, text);
+      if (!rows.length) throw new Error(`${file.name}: the parser found no charges.`);
+      return rows;
+    }
+    // Mock mode or image: simulate extraction with the sample set
+    return sampleCharges();
+  };
+
+  const analyze = async () => {
+    if (!files.length) return;
+    setParsing(true); setNote("");
+    const all: Charge[] = [];
+    const errs: string[] = [];
+    const simulated = settings.mock || files.some((f) => !/\.(csv|pdf)$/i.test(f.name));
+    for (const [i, f] of files.entries()) {
+      setProgress(`${f.name} (${i + 1}/${files.length})`);
+      try { all.push(...(await parseOne(f))); }
+      catch (e) { errs.push((e as Error).message); }
+    }
+    setParsing(false); setProgress("");
+    if (!all.length) return setNote(errs.join(" ") || "No charges found.");
+    setFiles([]);
+    const names = files.map((f) => f.name).join(", ");
+    onLoaded(all, files.length > 1 ? `${files.length} statements: ${names}` : simulated ? `${names} (simulated extraction)` : names);
+    if (errs.length) setNote(errs.join(" "));
   };
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
-      <section>
-        <p className="mb-4 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 font-mono text-xs text-muted-foreground"><ScanSearch className="h-3.5 w-3.5" /> autonomous billing auditor</p>
-        <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">Your statement has ghosts.<br /><span className="text-primary">We find them.</span></h1>
-        <p className="mt-4 max-w-lg text-lg text-muted-foreground">LedgerGhost reads your statements and invoices, flags charges that quietly crept up, and drafts polite dispute letters so you can get your money back.</p>
-        <ul className="mt-6 grid gap-3 sm:grid-cols-3">
-          {[["Stealth price hikes", "Plans that bumped without notice"], ["Duplicate line items", "Same charge billed twice"], ["Quiet fees", "Service, recovery & delivery add-ons"]].map(([t, d]) => (
-            <li key={t} className="rounded-xl border bg-card p-3"><p className="text-sm font-semibold">{t}</p><p className="text-xs text-muted-foreground">{d}</p></li>
-          ))}
-        </ul>
-        <button onClick={onSample} disabled={busy} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {busy ? "Auditing sample…" : "Try Sample Statement Audit"}
-        </button>
-      </section>
-      <section
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-        onDrop={(e) => { e.preventDefault(); setDrag(false); handle(e.dataTransfer.files[0]); }}
-        onClick={() => ref.current?.click()}
-        className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition ${drag ? "border-primary bg-accent" : "bg-card hover:border-primary/60"}`}>
-        <input ref={ref} type="file" accept=".pdf,.csv,image/*" className="hidden" onChange={(e) => handle(e.target.files?.[0])} />
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary"><Upload className="h-6 w-6 text-primary" /></div>
-        <p className="mt-4 font-semibold">{parsing ? "Reading your statement…" : "Drop a statement here"}</p>
-        {parsing && <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-primary"><Loader2 className="h-4 w-4 animate-spin" /> Nemotron Nano is extracting charges</p>}
-        <p className="text-sm text-muted-foreground">PDF, CSV or image · or click to browse</p>
-        <p className="mt-4 font-mono text-xs text-muted-foreground">CSV columns: merchant, date, category, description, amount</p>
-        {note && <p className="mt-3 text-sm text-destructive">{note}</p>}
-      </section>
+    <div>
+      <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+        <section>
+          <p className="mb-4 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 font-mono text-xs text-muted-foreground"><ScanSearch className="h-3.5 w-3.5" /> autonomous billing auditor</p>
+          <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">Your statement has ghosts.<br /><span className="text-primary">We find them.</span></h1>
+          <p className="mt-4 max-w-lg text-lg text-muted-foreground">LedgerGhost reads your statements and invoices, flags charges that quietly crept up, and drafts polite dispute letters so you can get your money back.</p>
+          <ul className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[["Stealth price hikes", "Plans that bumped without notice"], ["Duplicate line items", "Same charge billed twice"], ["Quiet fees", "Service, recovery & delivery add-ons"]].map(([t, d]) => (
+              <li key={t} className="rounded-xl border bg-card p-3"><p className="text-sm font-semibold">{t}</p><p className="text-xs text-muted-foreground">{d}</p></li>
+            ))}
+          </ul>
+          <button onClick={onSample} disabled={busy || parsing} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {busy ? "Auditing sample…" : "Try Sample Statement Audit"}
+          </button>
+        </section>
+        <section>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+            onDrop={(e) => { e.preventDefault(); setDrag(false); stage(e.dataTransfer.files); }}
+            onClick={() => ref.current?.click()}
+            className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition ${drag ? "border-primary bg-accent" : "bg-card hover:border-primary/60"}`}>
+            <input ref={ref} type="file" multiple accept=".pdf,.csv,image/*" className="hidden" onChange={(e) => { stage(e.target.files); e.target.value = ""; }} />
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary"><Upload className="h-6 w-6 text-primary" /></div>
+            <p className="mt-4 font-semibold">Drop statements here</p>
+            <p className="text-sm text-muted-foreground">PDF, CSV or image · add as many as you like, then analyze them together</p>
+            <p className="mt-4 font-mono text-xs text-muted-foreground">CSV columns: merchant, date, category, description, amount</p>
+          </div>
+          {!!files.length && (
+            <div className="mt-3 rounded-xl border bg-card p-3">
+              <ul className="divide-y text-sm">
+                {files.map((f, i) => (
+                  <li key={f.name + f.size} className="flex items-center gap-2 py-1.5">
+                    <FileText className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                    <button aria-label={`Remove ${f.name}`} disabled={parsing} onClick={() => setFiles(files.filter((_, j) => j !== i))} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"><X className="h-4 w-4" /></button>
+                  </li>
+                ))}
+              </ul>
+              <button onClick={analyze} disabled={parsing} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+                {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" />}
+                {parsing ? `Reading ${progress}…` : `Analyze ${files.length} statement${files.length > 1 ? "s" : ""}`}
+              </button>
+              {parsing && !settings.mock && <p className="mt-2 text-center text-xs text-muted-foreground">Nemotron Nano is extracting charges from each file</p>}
+            </div>
+          )}
+          {note && <p className="mt-3 text-sm text-destructive">{note}</p>}
+        </section>
+      </div>
+
+      {!!history.length && (
+        <section className="mt-14">
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><History className="h-5 w-5 text-primary" /> Audit history</h2>
+          <div className="mt-3 divide-y rounded-xl border bg-card">
+            {history.map((r) => {
+              const flagged = r.findings.filter((f) => f.status !== "clear");
+              const savings = flagged.reduce((s, f) => s + f.overcharge, 0);
+              return (
+                <div key={r.id} className="flex flex-wrap items-center gap-3 p-4 hover:bg-secondary/40">
+                  <button onClick={() => onOpenRecord(r)} className="min-w-0 flex-1 text-left">
+                    <p className="truncate font-medium">{r.source}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(r.at).toLocaleString()} · {r.charges.length} charges · {flagged.length ? `${flagged.length} flagged · ${money(savings)} recoverable` : "all clear"}
+                    </p>
+                  </button>
+                  {flagged.length > 0 && <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">{flagged.length} flagged</span>}
+                  <button aria-label="Delete audit" onClick={() => onDeleteRecord(r.id)} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
