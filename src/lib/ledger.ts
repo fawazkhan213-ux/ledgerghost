@@ -158,14 +158,10 @@ export function parseCSV(text: string): Charge[] {
 }
 
 async function chat(s: Settings, model: string, system: string, user: string) {
-  const res = await fetch(`${s.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.apiKey}` },
-    body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.2 }),
-  });
-  if (!res.ok) throw new Error(`Model request failed (${res.status})`);
-  const j = await res.json();
-  return j.choices?.[0]?.message?.content as string;
+  const { nebiusChat } = await import("./nebius.functions");
+  const r = await nebiusChat({ data: { apiKey: s.apiKey || undefined, baseUrl: s.baseUrl, model, system, user } });
+  if (!r.ok) throw new Error(r.error);
+  return r.content;
 }
 
 export async function liveAudit(s: Settings, charges: Charge[]): Promise<Finding[]> {
