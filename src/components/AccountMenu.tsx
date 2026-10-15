@@ -21,7 +21,7 @@ export function AccountMenu({ user, profile }: { user: User | null; profile: Pro
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   if (!user) {
-    return <Link to="/auth" className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-secondary">Sign in</Link>;
+    return <Link to="/auth" className="shrink-0 whitespace-nowrap rounded-lg border px-2 py-2 text-xs font-medium hover:bg-secondary sm:px-3 sm:text-sm">Sign in</Link>;
   }
   const signOut = async () => { setOpen(false); await supabase.auth.signOut(); navigate({ to: "/", replace: true }); };
   return (

@@ -89,6 +89,7 @@ function App() {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("lg-dark", dark ? "1" : "0");
   }, [dark]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [step]);
   const saveSettings = (s: Settings) => { setSettings(s); localStorage.setItem("lg-settings", JSON.stringify(s)); };
 
   const runAudit = async (list = charges, source = sourceName) => {
@@ -107,12 +108,12 @@ function App() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <button onClick={() => setStep("home")} className="flex items-center gap-2 font-semibold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground"><Ghost className="h-4 w-4" /></span>
+        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-3 sm:flex sm:px-4">
+          <button onClick={() => setStep("home")} className="flex min-w-0 items-center gap-1.5 text-sm font-semibold sm:gap-2 sm:text-base">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Ghost className="h-4 w-4" /></span>
             LedgerGhost
           </button>
-          <nav className="ml-6 hidden gap-1 text-sm sm:flex">
+          <nav className="ml-6 hidden gap-1 text-sm lg:flex">
             {(["home", "review", "results"] as Step[]).map((s, i) => (
               <button key={s} disabled={s !== "home" && !charges.length || (s === "results" && !findings.length)} onClick={() => setStep(s)}
                 className={`rounded-md px-3 py-1.5 capitalize disabled:opacity-40 ${step === s ? "bg-secondary font-medium" : "text-muted-foreground hover:text-foreground"}`}>
@@ -120,7 +121,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
             <Button variant="secondary" size="sm" disabled={busy} aria-label={settings.mock ? "Switch to Live Nemotron" : "Switch to Instant Demo"} title={settings.mock ? "Switch to Live Nemotron" : "Switch to Instant Demo"} onClick={() => saveSettings({ ...settings, mock: !settings.mock })}>
               {settings.mock ? <Sparkles /> : <ScanSearch />}
               <span className="hidden lg:inline">{settings.mock ? "Instant Demo" : "Live Nemotron"}</span>
@@ -132,7 +133,7 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto min-w-0 max-w-6xl px-4 py-5 sm:py-8">
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} history={history} onOpenRecord={openRecord} onDeleteRecord={deleteRecord} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
         {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}
@@ -145,7 +146,7 @@ function App() {
 }
 
 function IconBtn({ children, label, onClick }: { children: React.ReactNode; label: string; onClick: () => void }) {
-  return <button aria-label={label} onClick={onClick} className="grid h-9 w-9 place-items-center rounded-lg border bg-card hover:bg-secondary">{children}</button>;
+  return <Button variant="outline" size="icon" aria-label={label} title={label} onClick={onClick} className="shrink-0 bg-card">{children}</Button>;
 }
 
 function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDeleteRecord }: {
@@ -206,8 +207,8 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
 
   return (
     <div>
-      <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
-        <section>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center lg:gap-10">
+        <section className="min-w-0">
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 font-mono text-xs text-muted-foreground"><ScanSearch className="h-3.5 w-3.5" /> autonomous billing auditor</p>
           <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">Your statement has ghosts.<br /><span className="text-primary">We find them.</span></h1>
           <p className="mt-4 max-w-lg text-lg text-muted-foreground">LedgerGhost reads your statements and invoices, flags charges that quietly crept up, and drafts polite dispute letters so you can get your money back.</p>
@@ -225,12 +226,12 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
             ))}
           </div>
         </section>
-        <section>
+        <section className="min-w-0">
           <div
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
             onDrop={(e) => { e.preventDefault(); setDrag(false); stage(e.dataTransfer.files); }}
             onClick={() => ref.current?.click()}
-            className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition ${drag ? "border-primary bg-accent" : "bg-card hover:border-primary/60"}`}>
+            className={`cursor-pointer rounded-2xl border-2 border-dashed px-4 py-6 text-center sm:p-10 transition ${drag ? "border-primary bg-accent" : "bg-card hover:border-primary/60"}`}>
             <input ref={ref} type="file" multiple accept=".pdf,.csv,image/*" className="hidden" onChange={(e) => { stage(e.target.files); e.target.value = ""; }} />
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary"><Upload className="h-6 w-6 text-primary" /></div>
             <p className="mt-4 font-semibold">Drop statements here</p>
@@ -238,21 +239,21 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
             <p className="mt-4 font-mono text-xs text-muted-foreground">CSV columns: merchant, date, category, description, amount</p>
           </div>
           {!!files.length && (
-            <div className="mt-3 rounded-xl border bg-card p-3">
+            <div className="mt-3 min-w-0 rounded-lg border bg-card p-3">
               <ul className="divide-y text-sm">
                 {files.map((f, i) => (
-                  <li key={f.name + f.size} className="flex items-center gap-2 py-1.5">
-                    <FileText className="h-4 w-4 shrink-0 text-primary" />
-                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                  <li key={f.name + f.size} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 py-2">
+                    <span className="flex min-w-0 items-center gap-2"><FileText className="h-4 w-4 shrink-0 text-primary" /><span className="truncate">{f.name}</span></span>
                     <span className="font-mono text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
                     <button aria-label={`Remove ${f.name}`} disabled={parsing} onClick={() => setFiles(files.filter((_, j) => j !== i))} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"><X className="h-4 w-4" /></button>
                   </li>
                 ))}
               </ul>
-              <button onClick={analyze} disabled={parsing} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+              <Button onClick={analyze} disabled={parsing} className="mt-3 h-11 w-full min-w-0">
                 {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" />}
-                {parsing ? `Reading ${progress}…` : `Analyze ${files.length} statement${files.length > 1 ? "s" : ""}`}
-              </button>
+                <span className="min-w-0 truncate">{parsing ? "Reading statements…" : `Analyze ${files.length} statement${files.length > 1 ? "s" : ""}`}</span>
+              </Button>
+              {parsing && <p role="status" className="mt-2 truncate text-center text-xs text-muted-foreground" title={progress}>{progress}</p>}
               {parsing && !settings.mock && <p className="mt-2 text-center text-xs text-muted-foreground">Nemotron Nano is extracting charges from each file</p>}
             </div>
           )}
@@ -268,8 +269,8 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
               const flagged = r.findings.filter((f) => f.status !== "clear");
               const savings = flagged.reduce((s, f) => s + f.overcharge, 0);
               return (
-                <div key={r.id} className="flex flex-wrap items-center gap-3 p-4 hover:bg-secondary/40">
-                  <button onClick={() => onOpenRecord(r)} className="min-w-0 flex-1 text-left">
+                <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 hover:bg-secondary/40 sm:flex sm:p-4">
+                  <button onClick={() => onOpenRecord(r)} className="min-w-0 text-left [overflow-wrap:anywhere] sm:flex-1">
                     <p className="truncate font-medium">{r.source}</p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(r.at).toLocaleString()} · {r.charges.length} charges · {flagged.length ? `${flagged.length} flagged · ${money(savings, r.charges[0]?.currency)} recoverable` : "all clear"}
@@ -287,7 +288,7 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
   );
 }
 
-const field = "w-full rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+const field = "min-w-0 w-full rounded-md border bg-background px-2 py-2 text-base sm:py-1.5 sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
 function Review({ charges, setCharges, source, busy, onRun, onBack }: { charges: Charge[]; setCharges: (c: Charge[]) => void; source: string; busy: boolean; onRun: () => void; onBack: () => void }) {
   const upd = (id: string, k: keyof Charge, v: string) =>
@@ -297,16 +298,34 @@ function Review({ charges, setCharges, source, busy, onRun, onBack }: { charges:
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to upload</button>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div><h2 className="text-2xl font-bold">Review extracted charges</h2><p className="text-sm text-muted-foreground">{source} · {charges.length} items · {money(total, charges[0]?.currency)}</p></div>
-        <div className="flex gap-2">
-          <button onClick={add} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-2 text-sm hover:bg-secondary"><Plus className="h-4 w-4" /> Add charge</button>
-          <button onClick={onRun} disabled={busy || !charges.length} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+      <div className="mb-5 grid min-w-0 gap-4 sm:flex sm:items-end sm:justify-between">
+        <div className="min-w-0"><h2 className="text-xl font-bold sm:text-2xl">Review extracted charges</h2><p className="mt-1 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{source}</p><p className="mt-1 text-sm text-muted-foreground">{charges.length} items · {money(total, charges[0]?.currency)}</p></div>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <button onClick={add} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border bg-card px-3 py-2 text-sm hover:bg-secondary"><Plus className="h-4 w-4" /> Add charge</button>
+          <button onClick={onRun} disabled={busy || !charges.length} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" />} {busy ? "Agent auditing…" : "Run audit"}
           </button>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className="grid min-w-0 gap-3 md:hidden">
+        {charges.map((c, i) => (
+          <section key={c.id} aria-label={`Charge ${i + 1}`} className="min-w-0 rounded-lg border bg-card p-3">
+            <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+              <p className="truncate text-sm font-semibold">{c.merchant || `Charge ${i + 1}`}</p>
+              <Button variant="ghost" size="icon" aria-label={`Remove charge ${i + 1}`} onClick={() => setCharges(charges.filter((x) => x.id !== c.id))}><Trash2 /></Button>
+            </div>
+            <div className="grid min-w-0 grid-cols-2 gap-3">
+              <label className="col-span-2 min-w-0 space-y-1 text-xs text-muted-foreground">Merchant<input aria-label={`Merchant ${i + 1}`} className={`${field} text-foreground`} value={c.merchant} onChange={(e) => upd(c.id, "merchant", e.target.value)} /></label>
+              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">Date<input aria-label={`Date ${i + 1}`} type="date" className={`${field} text-foreground`} value={c.date} onChange={(e) => upd(c.id, "date", e.target.value)} /></label>
+              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">Category<input aria-label={`Category ${i + 1}`} className={`${field} text-foreground`} value={c.category} onChange={(e) => upd(c.id, "category", e.target.value)} /></label>
+              <label className="col-span-2 min-w-0 space-y-1 text-xs text-muted-foreground">Line item<textarea aria-label={`Line item ${i + 1}`} rows={2} className={`${field} resize-y text-foreground`} value={c.description} onChange={(e) => upd(c.id, "description", e.target.value)} /></label>
+              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">Amount ({c.currency || "USD"})<input aria-label={`Amount ${i + 1}`} type="number" step="0.01" className={`${field} font-mono text-foreground`} value={c.amount} onChange={(e) => upd(c.id, "amount", e.target.value)} /></label>
+              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">Prior amount<input aria-label={`Prior amount ${i + 1}`} type="number" step="0.01" placeholder="—" className={`${field} font-mono text-foreground`} value={c.priorAmount ?? ""} onChange={(e) => upd(c.id, "priorAmount", e.target.value)} /></label>
+            </div>
+          </section>
+        ))}
+      </div>
+      <div className="hidden min-w-0 overflow-x-auto rounded-lg border bg-card md:block">
         <table className="w-full min-w-[820px] text-sm">
           <thead className="bg-secondary/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>{["Merchant", "Date", "Category", "Line item", "Amount", "Prior", ""].map((h) => <th key={h} className="px-3 py-2 font-medium">{h}</th>)}</tr>
@@ -361,7 +380,7 @@ function Results({ charges, findings, settings, source, onBack }: { charges: Cha
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Edit charges</button>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid min-w-0 gap-3 sm:flex sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold">Audit findings</h2>
         <div className="flex gap-2">
           <button onClick={() => exportFile(auditCSV(charges, findings), "ledgerghost-audit.csv", "text/csv")} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><Download className="h-4 w-4" /> CSV</button>
@@ -379,14 +398,14 @@ function Results({ charges, findings, settings, source, onBack }: { charges: Cha
       </div>
       <div className="mt-3 divide-y rounded-xl border bg-card">
         {rows.map((c) => { const f = map.get(c.id)!; return (
-          <div key={c.id} className="flex flex-wrap items-center gap-3 p-4 hover:bg-secondary/40">
-            <button onClick={() => setOpen(c.id)} className="min-w-0 flex-1 text-left">
+          <div key={c.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 hover:bg-secondary/40 sm:flex sm:p-4">
+            <button onClick={() => setOpen(c.id)} className="min-w-0 text-left [overflow-wrap:anywhere] sm:flex-1">
               <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{c.merchant}</span><Badge s={f.status} /><span className="font-mono text-xs text-muted-foreground">{c.date}</span></div>
               <p className="truncate text-sm text-muted-foreground">{c.description}</p>
               {f.status !== "clear" && <p className="mt-1 text-sm">{f.reason}</p>}
             </button>
             <span className="font-mono font-medium">{money(c.amount, c.currency)}</span>
-            {f.status !== "clear" && <button onClick={() => setLetterFor(c.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><FileText className="h-4 w-4" /> Draft dispute</button>}
+            {f.status !== "clear" && <button onClick={() => setLetterFor(c.id)} className="col-span-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground sm:min-h-9 sm:w-auto"><FileText className="h-4 w-4" /> Draft dispute</button>}
           </div>
         ); })}
         {!rows.length && <p className="p-6 text-center text-sm text-muted-foreground">No flagged charges. Your ledger looks clean.</p>}
@@ -431,10 +450,10 @@ function PriceWatch({ charges, settings }: { charges: Charge[]; settings: Settin
   useEffect(() => { void run(); }, [charges, settings.mock]); // eslint-disable-line react-hooks/exhaustive-deps
   const label: Record<Trend["verdict"], string> = { hike: "Price hike", stable: "Stable", "promo-ended": "Promo ended", "above-market": "Above market" };
   return (
-    <section className="mt-6 rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section className="mt-6 min-w-0 border-y py-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
         <div>
-          <h3 className="flex items-center gap-2 font-semibold"><TrendingUp className="h-4 w-4 text-primary" /> 6-month price watch</h3>
+          <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold sm:gap-2 sm:text-base"><TrendingUp className="h-4 w-4 text-primary" /> 6-month price watch</h3>
           <p className="text-xs text-muted-foreground">Price history for your subscriptions — no past bills needed.{settings.mock ? " (Demo data)" : " Estimated by AI from public pricing; verify before disputing."}</p>
         </div>
         <button onClick={run} className="text-xs text-muted-foreground hover:text-foreground">Refresh</button>
@@ -442,10 +461,10 @@ function PriceWatch({ charges, settings }: { charges: Charge[]; settings: Settin
       {trends === null ? <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Checking price history…</p>
       : err ? <p className="mt-4 text-sm text-destructive">{err}</p>
       : !trends.length ? <p className="mt-4 text-sm text-muted-foreground">No recurring subscriptions detected.</p>
-      : <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      : <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2">
           {trends.map((t) => (
-            <div key={t.merchant} className="rounded-lg border p-3">
-              <div className="flex items-start justify-between gap-2">
+            <div key={t.merchant} className="min-w-0 rounded-lg border bg-card p-3 [overflow-wrap:anywhere]">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
                 <div className="min-w-0"><p className="truncate font-medium">{t.merchant}</p><p className="truncate text-xs text-muted-foreground">{t.service}</p></div>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${t.verdict === "stable" ? "bg-secondary text-muted-foreground" : "bg-destructive/15 text-destructive"}`}>{label[t.verdict] ?? t.verdict}{t.changePct ? ` +${Math.round(t.changePct)}%` : ""}</span>
               </div>
@@ -466,20 +485,20 @@ function Spark({ data, currency }: { data: { month: string; price: number }[]; c
   return (
     <div className="my-2">
       <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="h-10 w-full"><polyline points={pts} fill="none" stroke="var(--primary)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" /></svg>
-      <div className="flex justify-between font-mono text-[10px] text-muted-foreground"><span>{data[0]?.month} {money(ps[0] ?? 0, currency)}</span><span>{data.at(-1)?.month} {money(ps.at(-1) ?? 0, currency)}</span></div>
+      <div className="grid grid-cols-2 gap-2 font-mono text-xs text-muted-foreground [&>span]:min-w-0 [&>span]:break-words [&>span:last-child]:text-right"><span>{data[0]?.month} {money(ps[0] ?? 0, currency)}</span><span>{data.at(-1)?.month} {money(ps.at(-1) ?? 0, currency)}</span></div>
     </div>
   );
 }
 
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: "primary" | "destructive" }) {
-  return <div className="rounded-xl border bg-card p-4"><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className={`mt-1 font-mono text-3xl font-semibold ${tone === "primary" ? "text-primary" : tone === "destructive" ? "text-destructive" : ""}`}>{value}</p><p className="text-xs text-muted-foreground">{sub}</p></div>;
+  return <div className="min-w-0 rounded-lg border bg-card p-4"><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className={`mt-1 break-words font-mono text-2xl font-semibold sm:text-3xl ${tone === "primary" ? "text-primary" : tone === "destructive" ? "text-destructive" : ""}`}>{value}</p><p className="text-xs text-muted-foreground">{sub}</p></div>;
 }
 
 function Drawer({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-foreground/30 backdrop-blur-sm" onClick={onClose}>
-      <aside onClick={(e) => e.stopPropagation()} className="h-full w-full max-w-xl overflow-y-auto border-l bg-card p-6 shadow-2xl animate-in slide-in-from-right">
-        <div className="mb-5 flex items-center justify-between"><h2 className="font-semibold">{title}</h2><button aria-label="Close" onClick={onClose} className="rounded p-1 hover:bg-secondary"><X className="h-5 w-5" /></button></div>
+      <aside onClick={(e) => e.stopPropagation()} className="h-dvh w-full min-w-0 max-w-xl overflow-y-auto border-l bg-card p-4 [overflow-wrap:anywhere] sm:p-6 shadow-2xl animate-in slide-in-from-right">
+        <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"><h2 className="font-semibold">{title}</h2><button aria-label="Close" onClick={onClose} className="rounded p-1 hover:bg-secondary"><X className="h-5 w-5" /></button></div>
         {children}
       </aside>
     </div>
@@ -511,7 +530,7 @@ function LetterDrawer({ charge, finding, settings, onClose }: { charge: Charge; 
     <Drawer title={`Dispute letter · ${charge.merchant}`} onClose={onClose}>
       {loading ? <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Drafting with {settings.mock ? "mock agent" : "Nemotron Ultra"}…</div> : (
         <>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} className="h-[60vh] w-full resize-none rounded-lg border bg-background p-4 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring" />
+          <textarea value={text} onChange={(e) => setText(e.target.value)} className="h-[60dvh] w-full resize-none rounded-lg border bg-background p-3 font-mono text-base sm:p-4 sm:text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring" />
           <div className="mt-4 flex gap-2">
             <button onClick={copy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 font-medium hover:bg-secondary">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? "Copied" : "Copy"}</button>
             <button onClick={download} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-2.5 font-medium text-primary-foreground"><Download className="h-4 w-4" /> Download</button>
@@ -526,9 +545,9 @@ function SettingsModal({ settings, onSave, onClose }: { settings: Settings; onSa
   const [s, setS] = useState(settings);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/30 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="ai-settings-title" onClick={(e) => e.stopPropagation()} className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-lg border bg-card p-6 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="ai-settings-title" onClick={(e) => e.stopPropagation()} className="max-h-[85dvh] w-full min-w-0 max-w-md overflow-y-auto rounded-lg border bg-card p-4 sm:p-6 shadow-2xl">
         <div className="mb-6 flex items-center justify-between"><h2 id="ai-settings-title" className="text-lg font-semibold">AI settings</h2><Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>
-        <div role="group" aria-label="Audit mode" className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1">
+        <div role="group" aria-label="Audit mode" className="grid grid-cols-1 gap-1 rounded-lg bg-secondary p-1 min-[375px]:grid-cols-2">
           <Button variant={s.mock ? "default" : "ghost"} aria-pressed={s.mock} onClick={() => setS({ ...s, mock: true })}><Sparkles /> Instant Demo</Button>
           <Button variant={!s.mock ? "default" : "ghost"} aria-pressed={!s.mock} onClick={() => setS({ ...s, mock: false })}><ScanSearch /> Live Nemotron</Button>
         </div>
