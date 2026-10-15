@@ -111,7 +111,7 @@ function App() {
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
+        {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} history={history} onOpenRecord={openRecord} onDeleteRecord={deleteRecord} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
         {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}
         {step === "results" && <Results charges={charges} findings={findings} settings={settings} onBack={() => setStep("review")} />}
       </main>
