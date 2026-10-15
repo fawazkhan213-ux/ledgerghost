@@ -206,3 +206,38 @@ export async function liveAudit(s: Settings, charges: Charge[]): Promise<Finding
 export async function liveLetter(s: Settings, c: Charge, f: Finding) {
   return chat(s, s.reasonModel, "Write a polite, professional dispute letter to a merchant asking them to review or refund a charge. Plain text with placeholders for sender name/address.", JSON.stringify({ charge: c, finding: f }));
 }
+
+export type Trend = {
+  merchant: string;
+  service: string;
+  history: { month: string; price: number }[];
+  changePct: number;
+  verdict: "hike" | "stable" | "promo-ended" | "above-market";
+  insight: string;
+  tip: string;
+};
+
+const DEMO_TRENDS: Record<string, Omit<Trend, "merchant">> = {
+  "Verilink Wireless": { service: "Unlimited Plus (2 lines)", history: [["Apr",100],["May",100],["Jun",110],["Jul",110],["Aug",120],["Sep",127.98]].map(([month,price])=>({month:month as string,price:price as number})), changePct: 28, verdict: "hike", insight: "Two quiet plan increases plus a new network surcharge since April.", tip: "Ask for the loyalty rate or switch to the carrier's current 2-line promo (~$100)." },
+  "Cloudnote Pro": { service: "Team plan", history: [["Apr",39.99],["May",39.99],["Jun",49.99],["Jul",49.99],["Aug",49.99],["Sep",59.99]].map(([month,price])=>({month:month as string,price:price as number})), changePct: 50, verdict: "promo-ended", insight: "Intro discount expired in June, then a list-price bump in September.", tip: "Annual billing is ~20% cheaper; ask support to restore the prior rate." },
+  "StreamBox": { service: "Premium 4K", history: [["Apr",19.99],["May",19.99],["Jun",19.99],["Jul",22.99],["Aug",22.99],["Sep",22.99]].map(([month,price])=>({month:month as string,price:price as number})), changePct: 15, verdict: "hike", insight: "Industry-wide streaming price increase in July.", tip: "The ad-supported tier costs ~$9.99 if you don't need 4K." },
+  "PulseFit Gym": { service: "Monthly membership", history: [["Apr",39],["May",39],["Jun",39],["Jul",39],["Aug",39],["Sep",39]].map(([month,price])=>({month:month as string,price:price as number})), changePct: 0, verdict: "stable", insight: "Base price stable, but an annual fee appeared this month.", tip: "Many gyms waive the facility fee if you ask before it posts." },
+};
+
+export function mockTrends(charges: Charge[]): Trend[] {
+  const seen = new Set(charges.map((c) => c.merchant));
+  return Object.entries(DEMO_TRENDS).filter(([m]) => seen.has(m)).map(([merchant, t]) => ({ merchant, ...t }));
+}
+
+export async function liveTrends(s: Settings, charges: Charge[]): Promise<Trend[]> {
+  const merchants = Array.from(new Map(charges.map((c) => [c.merchant, { merchant: c.merchant, description: c.description, category: c.category, currentAmount: c.amount, date: c.date }])).values());
+  const out = await chat(
+    s,
+    s.reasonModel,
+    "You are a consumer pricing analyst. For each recurring/subscription merchant in the list (skip one-off purchases like groceries or dining), use your knowledge of publicly announced price changes, typical plan pricing and expired intro promos to estimate the monthly price over the 6 months up to the charge date. Return ONLY a JSON array of {merchant,service,history:[{month:'Mon',price:number}] (6 entries, oldest first, last = current amount),changePct:number,verdict:'hike'|'stable'|'promo-ended'|'above-market',insight:string (1 sentence),tip:string (1 sentence, how to save)}. If the merchant is unknown, infer from category norms and say so in insight.",
+    JSON.stringify(merchants),
+  );
+  const m = out.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error("Model returned no trends");
+  return (JSON.parse(m[0]) as Trend[]).filter((t) => Array.isArray(t.history) && t.history.length);
+}
