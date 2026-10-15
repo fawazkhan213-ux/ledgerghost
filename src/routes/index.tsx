@@ -158,7 +158,8 @@ function Home({ busy, settings, onSample, onLoaded }: { busy: boolean; settings:
         className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition ${drag ? "border-primary bg-accent" : "bg-card hover:border-primary/60"}`}>
         <input ref={ref} type="file" accept=".pdf,.csv,image/*" className="hidden" onChange={(e) => handle(e.target.files?.[0])} />
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary"><Upload className="h-6 w-6 text-primary" /></div>
-        <p className="mt-4 font-semibold">Drop a statement here</p>
+        <p className="mt-4 font-semibold">{parsing ? "Reading your statement…" : "Drop a statement here"}</p>
+        {parsing && <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-primary"><Loader2 className="h-4 w-4 animate-spin" /> Nemotron Nano is extracting charges</p>}
         <p className="text-sm text-muted-foreground">PDF, CSV or image · or click to browse</p>
         <p className="mt-4 font-mono text-xs text-muted-foreground">CSV columns: merchant, date, category, description, amount</p>
         {note && <p className="mt-3 text-sm text-destructive">{note}</p>}
