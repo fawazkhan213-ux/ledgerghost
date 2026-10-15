@@ -161,9 +161,12 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
   const [parsing, setParsing] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState("");
+  const [progressValue, setProgressValue] = useState(0);
+  const [completedFiles, setCompletedFiles] = useState(0);
+  const [processingMessage, setProcessingMessage] = useState("");
 
   const stage = (list: FileList | null) => {
-    if (!list?.length) return;
+    if (parsing || !list?.length) return;
     setNote("");
     setFiles((prev) => {
       const names = new Set(prev.map((f) => f.name + f.size));
@@ -171,34 +174,45 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
     });
   };
 
-  const parseOne = async (file: File): Promise<Charge[]> => {
+  const parseOne = async (file: File, advance: (fraction: number, message: string) => void): Promise<Charge[]> => {
     if (file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv") {
+      advance(0.15, "Reading CSV on your device — no file upload needed.");
       const rows = parseCSV(await file.text());
       if (!rows.length) throw new Error(`Couldn't find any charges in ${file.name}.`);
       return rows;
     }
     if (file.name.toLowerCase().endsWith(".pdf") && !settings.mock) {
+      advance(0.15, "Reading PDF text on your device. The original file is not uploaded.");
       const text = await extractPdfText(file);
       if (!text.trim()) throw new Error(`${file.name}: no readable text (scanned documents aren't supported yet).`);
+      advance(0.5, "Extracted text is being sent to your AI provider for charge extraction.");
       const rows = await liveParse(settings, text);
       if (!rows.length) throw new Error(`${file.name}: the parser found no charges.`);
       return rows;
     }
     // Mock mode or image: simulate extraction with the sample set
+    advance(0.5, "Preparing sample charges — this document is not sent to AI.");
     return sampleCharges();
   };
 
   const analyze = async () => {
     if (!files.length) return;
-    setParsing(true); setNote("");
+    setParsing(true); setNote(""); setProgressValue(0); setCompletedFiles(0);
     const all: Charge[] = [];
     const errs: string[] = [];
     const simulated = settings.mock || files.some((f) => !/\.(csv|pdf)$/i.test(f.name));
     for (const [i, f] of files.entries()) {
       setProgress(`${f.name} (${i + 1}/${files.length})`);
-      try { all.push(...(await parseOne(f))); }
+      try { all.push(...(await parseOne(f, (fraction, message) => {
+        setProgressValue(Math.round(((i + fraction) / files.length) * 100));
+        setProcessingMessage(message);
+      }))); }
       catch (e) { errs.push((e as Error).message); }
+      setCompletedFiles(i + 1);
+      setProgressValue(Math.round(((i + 1) / files.length) * 100));
     }
+    setProcessingMessage(all.length ? "Reading complete — preparing your charge review." : "Reading complete — check the file errors below.");
+    await new Promise((resolve) => setTimeout(resolve, 350));
     setParsing(false); setProgress("");
     if (!all.length) return setNote(errs.join(" ") || "No charges found.");
     setFiles([]);
@@ -229,12 +243,23 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
           </div>
         </section>
         <section className="min-w-0">
+          <div className="mb-4 text-sm" aria-label="Statement privacy">
+            <h2 className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" /> Your privacy, before you start</h2>
+            <p className="mt-2 leading-relaxed text-muted-foreground">Original statement files are not uploaded or saved by LedgerGhost. Choosing files only queues them; processing starts when you select Analyze.</p>
+            <p className="mt-2 leading-relaxed text-muted-foreground">{settings.mock
+              ? "Demo mode: no statement content is sent to AI. CSV charges are read on your device; PDFs and images use sample charges."
+              : "Live mode: extracted PDF text and charge details are sent through our server to Nebius for AI processing (or your custom provider, if configured). Images use sample charges; scanned PDFs are not supported."}</p>
+            <details className="mt-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer font-medium text-foreground">What is saved?</summary>
+              <p className="mt-2 leading-relaxed">After an audit, filenames, charges and findings are saved in your browser if you are a guest, or in your account if signed in — including demo audits. You can delete saved audits from History. Avoid shared devices for sensitive statements, and remove personal details you do not want sent to AI. AI-provider retention and training policies are not verified here.</p>
+            </details>
+          </div>
           <div
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
             onDrop={(e) => { e.preventDefault(); setDrag(false); stage(e.dataTransfer.files); }}
-            onClick={() => ref.current?.click()}
+            onClick={() => { if (!parsing) ref.current?.click(); }}
             className={`cursor-pointer rounded-2xl border-2 border-dashed px-4 py-6 text-center sm:p-10 transition ${drag ? "border-primary bg-accent" : "bg-card hover:border-primary/60"}`}>
-            <input ref={ref} type="file" multiple accept=".pdf,.csv,image/*" className="hidden" onChange={(e) => { stage(e.target.files); e.target.value = ""; }} />
+            <input ref={ref} type="file" multiple disabled={parsing} accept=".pdf,.csv,image/*" className="hidden" onChange={(e) => { stage(e.target.files); e.target.value = ""; }} />
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary"><Upload className="h-6 w-6 text-primary" /></div>
             <p className="mt-4 font-semibold">Drop statements here</p>
             <p className="text-sm text-muted-foreground">PDF, CSV or image · add as many as you like, then analyze them together</p>
@@ -255,8 +280,16 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
                 {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" />}
                 <span className="min-w-0 truncate">{parsing ? "Reading statements…" : `Analyze ${files.length} statement${files.length > 1 ? "s" : ""}`}</span>
               </Button>
-              {parsing && <p role="status" className="mt-2 truncate text-center text-xs text-muted-foreground" title={progress}>{progress}</p>}
-              {parsing && !settings.mock && <p className="mt-2 text-center text-xs text-muted-foreground">Nemotron Nano is extracting charges from each file</p>}
+              {parsing && <div className="mt-4 min-w-0" role="status" aria-live="polite">
+                <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+                  <span className="font-medium">Preparing charge review</span>
+                  <span className="shrink-0 font-mono text-muted-foreground">{progressValue}%</span>
+                </div>
+                <progress aria-label="Statement preparation progress" max={100} value={progressValue} className="block h-2 w-full overflow-hidden rounded-full border-0 bg-secondary [&::-webkit-progress-bar]:bg-secondary [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-primary [&::-webkit-progress-value]:transition-all motion-reduce:[&::-webkit-progress-value]:transition-none [&::-moz-progress-bar]:bg-primary" />
+                <p className="mt-2 truncate text-xs text-muted-foreground" title={progress}>{progress}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{completedFiles} of {files.length} files checked · progress follows reading stages</p>
+                <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /><span>{processingMessage}</span></p>
+              </div>}
             </div>
           )}
           {note && <p className="mt-3 text-sm text-destructive">{note}</p>}
