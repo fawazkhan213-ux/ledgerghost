@@ -338,7 +338,13 @@ const BADGE: Record<Status, { label: string; cls: string; Icon: typeof ShieldChe
 };
 const Badge = ({ s }: { s: Status }) => { const b = BADGE[s]; return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}><b.Icon className="h-3 w-3" />{b.label}</span>; };
 
-function Results({ charges, findings, settings, onBack }: { charges: Charge[]; findings: Finding[]; settings: Settings; onBack: () => void }) {
+function exportFile(content: string, name: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = document.createElement("a"); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function Results({ charges, findings, settings, source, onBack }: { charges: Charge[]; findings: Finding[]; settings: Settings; source: string; onBack: () => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const [letterFor, setLetterFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "flagged">("all");
@@ -355,7 +361,13 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Edit charges</button>
-      <h2 className="text-2xl font-bold">Audit findings</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">Audit findings</h2>
+        <div className="flex gap-2">
+          <button onClick={() => exportFile(auditCSV(charges, findings), "ledgerghost-audit.csv", "text/csv")} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><Download className="h-4 w-4" /> CSV</button>
+          <button onClick={() => { const w = window.open("", "_blank"); if (w) { w.document.write(auditReportHTML(charges, findings, source)); w.document.close(); } else exportFile(auditReportHTML(charges, findings, source), "ledgerghost-report.html", "text/html"); }} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><FileText className="h-4 w-4" /> Report / PDF</button>
+        </div>
+      </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Stat label="Total audited" value={money(total, charges[0]?.currency)} sub={`${charges.length} charges`} />
         <Stat label="Potential overcharges" value={String(flagged.length)} sub={`${findings.filter((f) => f.status === "high").length} high risk`} tone="destructive" />
