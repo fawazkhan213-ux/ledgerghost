@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   type Charge, type Finding, type Settings, type Status, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
-  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, uid,
+  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid,
 } from "@/lib/ledger";
 
 export const Route = createFileRoute("/")({
@@ -93,8 +93,8 @@ function App() {
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {step === "home" && <Home busy={busy} onSample={trySample} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
-        {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} />}
+        {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
+        {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}
         {step === "results" && <Results charges={charges} findings={findings} settings={settings} onBack={() => setStep("review")} />}
       </main>
 
@@ -107,20 +107,31 @@ function IconBtn({ children, label, onClick }: { children: React.ReactNode; labe
   return <button aria-label={label} onClick={onClick} className="grid h-9 w-9 place-items-center rounded-lg border bg-card hover:bg-secondary">{children}</button>;
 }
 
-function Home({ busy, onSample, onLoaded }: { busy: boolean; onSample: () => void; onLoaded: (c: Charge[], name: string) => void }) {
+function Home({ busy, settings, onSample, onLoaded }: { busy: boolean; settings: Settings; onSample: () => void; onLoaded: (c: Charge[], name: string) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [note, setNote] = useState("");
+  const [parsing, setParsing] = useState(false);
 
   const handle = async (file?: File) => {
     if (!file) return;
+    setNote("");
     if (file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv") {
       const rows = parseCSV(await file.text());
       if (!rows.length) return setNote("Couldn't find any charges in that CSV.");
       onLoaded(rows, file.name);
+    } else if (file.name.toLowerCase().endsWith(".pdf") && !settings.mock) {
+      setParsing(true);
+      try {
+        const text = await extractPdfText(file);
+        if (!text.trim()) throw new Error("No readable text in that PDF (scanned documents aren't supported yet).");
+        const rows = await liveParse(settings, text);
+        if (!rows.length) throw new Error("The parser found no charges in that PDF.");
+        onLoaded(rows, file.name);
+      } catch (e) { setNote((e as Error).message); }
+      finally { setParsing(false); }
     } else {
-      // PDF/image: in mock mode we simulate extraction with the sample set
-      setNote("");
+      // Mock mode or image: simulate extraction with the sample set
       onLoaded(sampleCharges(), `${file.name} (simulated extraction)`);
     }
   };
@@ -147,7 +158,8 @@ function Home({ busy, onSample, onLoaded }: { busy: boolean; onSample: () => voi
         className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition ${drag ? "border-primary bg-accent" : "bg-card hover:border-primary/60"}`}>
         <input ref={ref} type="file" accept=".pdf,.csv,image/*" className="hidden" onChange={(e) => handle(e.target.files?.[0])} />
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary"><Upload className="h-6 w-6 text-primary" /></div>
-        <p className="mt-4 font-semibold">Drop a statement here</p>
+        <p className="mt-4 font-semibold">{parsing ? "Reading your statement…" : "Drop a statement here"}</p>
+        {parsing && <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-primary"><Loader2 className="h-4 w-4 animate-spin" /> Nemotron Nano is extracting charges</p>}
         <p className="text-sm text-muted-foreground">PDF, CSV or image · or click to browse</p>
         <p className="mt-4 font-mono text-xs text-muted-foreground">CSV columns: merchant, date, category, description, amount</p>
         {note && <p className="mt-3 text-sm text-destructive">{note}</p>}
@@ -158,13 +170,14 @@ function Home({ busy, onSample, onLoaded }: { busy: boolean; onSample: () => voi
 
 const field = "w-full rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
-function Review({ charges, setCharges, source, busy, onRun }: { charges: Charge[]; setCharges: (c: Charge[]) => void; source: string; busy: boolean; onRun: () => void }) {
+function Review({ charges, setCharges, source, busy, onRun, onBack }: { charges: Charge[]; setCharges: (c: Charge[]) => void; source: string; busy: boolean; onRun: () => void; onBack: () => void }) {
   const upd = (id: string, k: keyof Charge, v: string) =>
     setCharges(charges.map((c) => c.id === id ? { ...c, [k]: k === "amount" || k === "priorAmount" ? (v === "" ? (k === "priorAmount" ? null : 0) : parseFloat(v)) : v } : c));
   const add = () => setCharges([...charges, { id: uid(), merchant: "", date: new Date().toISOString().slice(0, 10), category: "Other", description: "", amount: 0, priorAmount: null }]);
   const total = charges.reduce((s, c) => s + (c.amount || 0), 0);
   return (
     <div>
+      <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to upload</button>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div><h2 className="text-2xl font-bold">Review extracted charges</h2><p className="text-sm text-muted-foreground">{source} · {charges.length} items · {money(total)}</p></div>
         <div className="flex gap-2">

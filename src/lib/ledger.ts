@@ -165,6 +165,32 @@ async function chat(s: Settings, model: string, system: string, user: string) {
   return r.content;
 }
 
+export async function extractPdfText(file: File): Promise<string> {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const parts: string[] = [];
+  for (let p = 1; p <= Math.min(pdf.numPages, 10); p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    parts.push(tc.items.map((i) => ("str" in i ? i.str : "")).join(" "));
+  }
+  return parts.join("\n").slice(0, 40000);
+}
+
+export async function liveParse(s: Settings, text: string): Promise<Charge[]> {
+  const out = await chat(
+    s,
+    s.parseModel,
+    "You are a statement parser. Extract every charge/transaction from the statement text. Return ONLY a JSON array of objects {merchant,date,category,description,amount,priorAmount}. date as YYYY-MM-DD, amount as positive number, priorAmount as last period's amount for the same item or null. No commentary.",
+    text,
+  );
+  const m = out.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error("Parser returned no charges");
+  const rows = JSON.parse(m[0]) as Omit<Charge, "id">[];
+  return rows.map((r) => ({ ...r, id: uid(), amount: Math.abs(Number(r.amount) || 0), priorAmount: r.priorAmount != null ? Number(r.priorAmount) : null }));
+}
+
 export async function liveAudit(s: Settings, charges: Charge[]): Promise<Finding[]> {
   const out = await chat(
     s,
