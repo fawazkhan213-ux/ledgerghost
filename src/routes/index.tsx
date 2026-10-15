@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { FeatureCards } from "@/components/FeatureCards";
 import { AccountMenu } from "@/components/AccountMenu";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -119,9 +120,10 @@ function App() {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <span className={`hidden rounded-full px-2.5 py-1 font-mono text-xs sm:inline ${settings.mock ? "bg-warning/20 text-warning-foreground dark:text-warning" : "bg-success/15 text-success"}`}>
-              {settings.mock ? "MOCK MODE" : "LIVE · NEMOTRON"}
-            </span>
+            <Button variant="secondary" size="sm" disabled={busy} aria-label={settings.mock ? "Switch to Live Nemotron" : "Switch to Instant Demo"} title={settings.mock ? "Switch to Live Nemotron" : "Switch to Instant Demo"} onClick={() => saveSettings({ ...settings, mock: !settings.mock })}>
+              {settings.mock ? <Sparkles /> : <ScanSearch />}
+              <span className="hidden lg:inline">{settings.mock ? "Instant Demo" : "Live Nemotron"}</span>
+            </Button>
             <IconBtn label="Toggle theme" onClick={() => setDark(!dark)}>{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</IconBtn>
             <IconBtn label="AI settings" onClick={() => setShowSettings(true)}><Cog className="h-4 w-4" /></IconBtn>
             {ready && <AccountMenu user={user} profile={profile} />}
@@ -450,23 +452,34 @@ function SettingsModal({ settings, onSave, onClose }: { settings: Settings; onSa
   const [s, setS] = useState(settings);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/30 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">AI & model settings</h2><button aria-label="Close" onClick={onClose}><X className="h-5 w-5" /></button></div>
-        <label className="flex items-center justify-between rounded-lg bg-secondary/60 p-3">
-          <span><span className="font-medium">Mock mode</span><span className="block text-xs text-muted-foreground">Runs the built-in audit agent — no API key needed.</span></span>
-          <input type="checkbox" checked={s.mock} onChange={(e) => setS({ ...s, mock: e.target.checked })} className="h-5 w-5 accent-[var(--primary)]" />
-        </label>
-        <fieldset disabled={s.mock} className="mt-4 space-y-3 disabled:opacity-50">
-          <p className="font-mono text-xs uppercase text-muted-foreground">Nebius Token Factory · NVIDIA Nemotron</p>
-          <Lbl t="API key"><input type="password" className={field} placeholder="Optional — uses the saved server key" value={s.apiKey} onChange={(e) => setS({ ...s, apiKey: e.target.value })} /></Lbl>
-          <Lbl t="Base URL"><input className={`${field} font-mono`} value={s.baseUrl} onChange={(e) => setS({ ...s, baseUrl: e.target.value })} /></Lbl>
-          <Lbl t="Parsing model"><select className={field} value={s.parseModel} onChange={(e) => setS({ ...s, parseModel: e.target.value })}>{PARSE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Lbl>
-          <Lbl t="Reasoning & dispute drafting model"><select className={field} value={s.reasonModel} onChange={(e) => setS({ ...s, reasonModel: e.target.value })}>{REASON_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Lbl>
-          <p className="text-xs text-muted-foreground">Your key is stored only in this browser.</p>
-        </fieldset>
+      <div role="dialog" aria-modal="true" aria-labelledby="ai-settings-title" onClick={(e) => e.stopPropagation()} className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-lg border bg-card p-6 shadow-2xl">
+        <div className="mb-6 flex items-center justify-between"><h2 id="ai-settings-title" className="text-lg font-semibold">AI settings</h2><Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>
+        <div role="group" aria-label="Audit mode" className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1">
+          <Button variant={s.mock ? "default" : "ghost"} aria-pressed={s.mock} onClick={() => setS({ ...s, mock: true })}><Sparkles /> Instant Demo</Button>
+          <Button variant={!s.mock ? "default" : "ghost"} aria-pressed={!s.mock} onClick={() => setS({ ...s, mock: false })}><ScanSearch /> Live Nemotron</Button>
+        </div>
+        <div className="flex items-center gap-3 py-5">
+          <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
+          <div><p className="text-sm font-medium">{s.mock ? "Sample audit agent" : "Nebius · NVIDIA Nemotron"}</p><p className="mt-1 text-xs text-muted-foreground">{s.mock ? "No credentials required" : s.apiKey ? "Custom credentials selected" : "Uses your saved server key"}</p></div>
+        </div>
+        <details className="border-t pt-4">
+          <summary className="cursor-pointer text-sm text-muted-foreground">Advanced configuration</summary>
+          <fieldset disabled={s.mock} className="mt-4 space-y-3 disabled:opacity-50">
+            <Lbl t="Parsing model"><select className={field} value={s.parseModel} onChange={(e) => setS({ ...s, parseModel: e.target.value })}>{PARSE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Lbl>
+            <Lbl t="Reasoning & dispute model"><select className={field} value={s.reasonModel} onChange={(e) => setS({ ...s, reasonModel: e.target.value })}>{REASON_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Lbl>
+            <details>
+              <summary className="cursor-pointer text-xs text-muted-foreground">Custom connection</summary>
+              <div className="mt-3 space-y-3">
+                <Lbl t="API key"><input type="password" autoComplete="off" className={field} placeholder="Optional — saved server key by default" value={s.apiKey} onChange={(e) => setS({ ...s, apiKey: e.target.value })} /></Lbl>
+                <Lbl t="Base URL"><input className={`${field} font-mono`} value={s.baseUrl} onChange={(e) => setS({ ...s, baseUrl: e.target.value })} /></Lbl>
+                <p className="text-xs text-muted-foreground">Custom connection settings are saved in this browser.</p>
+              </div>
+            </details>
+          </fieldset>
+        </details>
         <div className="mt-6 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border px-4 py-2 text-sm">Cancel</button>
-          <button onClick={() => onSave(s)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Save</button>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSave(s)}>Save changes</Button>
         </div>
       </div>
     </div>
