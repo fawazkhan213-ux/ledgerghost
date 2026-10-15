@@ -12,6 +12,7 @@ import {
 import {
   type Charge, type Finding, type Settings, type Status, type Trend, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
   sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid, mockTrends, liveTrends, fmtMoney,
+  type Scenario, SCENARIOS, scenarioCharges, auditCSV, auditReportHTML,
 } from "@/lib/ledger";
 
 export const Route = createFileRoute("/")({
@@ -101,7 +102,7 @@ function App() {
     finally { setBusy(false); }
   };
 
-  const trySample = () => { const s = sampleCharges(); setSourceName("Sample statement — Sept 2026"); setCharges(s); runAudit(s, "Sample statement — Sept 2026"); };
+  const trySample = (sc: Scenario = SCENARIOS[0]!) => { const s = scenarioCharges(sc); setSourceName(sc.source); setCharges(s); runAudit(s, sc.source); };
 
   return (
     <div className="min-h-screen">
@@ -135,7 +136,7 @@ function App() {
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} history={history} onOpenRecord={openRecord} onDeleteRecord={deleteRecord} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
         {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}
-        {step === "results" && <Results charges={charges} findings={findings} settings={settings} onBack={() => setStep("review")} />}
+        {step === "results" && <Results charges={charges} findings={findings} settings={settings} source={sourceName} onBack={() => setStep("review")} />}
       </main>
 
       {showSettings && <SettingsModal settings={settings} onSave={(s) => { saveSettings(s); setShowSettings(false); }} onClose={() => setShowSettings(false)} />}
@@ -148,7 +149,7 @@ function IconBtn({ children, label, onClick }: { children: React.ReactNode; labe
 }
 
 function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDeleteRecord }: {
-  busy: boolean; settings: Settings; onSample: () => void; onLoaded: (c: Charge[], name: string) => void;
+  busy: boolean; settings: Settings; onSample: (s?: Scenario) => void; onLoaded: (c: Charge[], name: string) => void;
   history: AuditRecord[]; onOpenRecord: (r: AuditRecord) => void; onDeleteRecord: (id: string) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -211,9 +212,18 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
           <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">Your statement has ghosts.<br /><span className="text-primary">We find them.</span></h1>
           <p className="mt-4 max-w-lg text-lg text-muted-foreground">LedgerGhost reads your statements and invoices, flags charges that quietly crept up, and drafts polite dispute letters so you can get your money back.</p>
           <FeatureCards />
-          <button onClick={onSample} disabled={busy || parsing} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60">
+          <button onClick={() => onSample()} disabled={busy || parsing} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {busy ? "Auditing sample…" : "Try Sample Statement Audit"}
           </button>
+          <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Or try a scenario</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {SCENARIOS.slice(1).map((sc) => (
+              <button key={sc.id} onClick={() => onSample(sc)} disabled={busy || parsing} className="rounded-xl border bg-card p-3 text-left transition hover:border-primary/60 disabled:opacity-60">
+                <span className="block text-sm font-semibold">{sc.title}</span>
+                <span className="block text-xs text-muted-foreground">{sc.blurb}</span>
+              </button>
+            ))}
+          </div>
         </section>
         <section>
           <div
@@ -328,7 +338,13 @@ const BADGE: Record<Status, { label: string; cls: string; Icon: typeof ShieldChe
 };
 const Badge = ({ s }: { s: Status }) => { const b = BADGE[s]; return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}><b.Icon className="h-3 w-3" />{b.label}</span>; };
 
-function Results({ charges, findings, settings, onBack }: { charges: Charge[]; findings: Finding[]; settings: Settings; onBack: () => void }) {
+function exportFile(content: string, name: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = document.createElement("a"); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function Results({ charges, findings, settings, source, onBack }: { charges: Charge[]; findings: Finding[]; settings: Settings; source: string; onBack: () => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const [letterFor, setLetterFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "flagged">("all");
@@ -345,7 +361,13 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Edit charges</button>
-      <h2 className="text-2xl font-bold">Audit findings</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">Audit findings</h2>
+        <div className="flex gap-2">
+          <button onClick={() => exportFile(auditCSV(charges, findings), "ledgerghost-audit.csv", "text/csv")} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><Download className="h-4 w-4" /> CSV</button>
+          <button onClick={() => { const w = window.open("", "_blank"); if (w) { w.document.write(auditReportHTML(charges, findings, source)); w.document.close(); } else exportFile(auditReportHTML(charges, findings, source), "ledgerghost-report.html", "text/html"); }} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><FileText className="h-4 w-4" /> Report / PDF</button>
+        </div>
+      </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Stat label="Total audited" value={money(total, charges[0]?.currency)} sub={`${charges.length} charges`} />
         <Stat label="Potential overcharges" value={String(flagged.length)} sub={`${findings.filter((f) => f.status === "high").length} high risk`} tone="destructive" />
