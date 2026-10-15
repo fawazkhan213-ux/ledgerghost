@@ -12,6 +12,7 @@ import {
 import {
   type Charge, type Finding, type Settings, type Status, type Trend, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
   sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid, mockTrends, liveTrends, fmtMoney,
+  type Scenario, SCENARIOS, scenarioCharges, auditCSV, auditReportHTML,
 } from "@/lib/ledger";
 
 export const Route = createFileRoute("/")({
@@ -101,7 +102,7 @@ function App() {
     finally { setBusy(false); }
   };
 
-  const trySample = () => { const s = sampleCharges(); setSourceName("Sample statement — Sept 2026"); setCharges(s); runAudit(s, "Sample statement — Sept 2026"); };
+  const trySample = (sc: Scenario = SCENARIOS[0]!) => { const s = scenarioCharges(sc); setSourceName(sc.source); setCharges(s); runAudit(s, sc.source); };
 
   return (
     <div className="min-h-screen">
@@ -135,7 +136,7 @@ function App() {
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} history={history} onOpenRecord={openRecord} onDeleteRecord={deleteRecord} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
         {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}
-        {step === "results" && <Results charges={charges} findings={findings} settings={settings} onBack={() => setStep("review")} />}
+        {step === "results" && <Results charges={charges} findings={findings} settings={settings} source={sourceName} onBack={() => setStep("review")} />}
       </main>
 
       {showSettings && <SettingsModal settings={settings} onSave={(s) => { saveSettings(s); setShowSettings(false); }} onClose={() => setShowSettings(false)} />}
@@ -148,7 +149,7 @@ function IconBtn({ children, label, onClick }: { children: React.ReactNode; labe
 }
 
 function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDeleteRecord }: {
-  busy: boolean; settings: Settings; onSample: () => void; onLoaded: (c: Charge[], name: string) => void;
+  busy: boolean; settings: Settings; onSample: (s?: Scenario) => void; onLoaded: (c: Charge[], name: string) => void;
   history: AuditRecord[]; onOpenRecord: (r: AuditRecord) => void; onDeleteRecord: (id: string) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -211,9 +212,18 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
           <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">Your statement has ghosts.<br /><span className="text-primary">We find them.</span></h1>
           <p className="mt-4 max-w-lg text-lg text-muted-foreground">LedgerGhost reads your statements and invoices, flags charges that quietly crept up, and drafts polite dispute letters so you can get your money back.</p>
           <FeatureCards />
-          <button onClick={onSample} disabled={busy || parsing} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60">
+          <button onClick={() => onSample()} disabled={busy || parsing} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {busy ? "Auditing sample…" : "Try Sample Statement Audit"}
           </button>
+          <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Or try a scenario</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {SCENARIOS.slice(1).map((sc) => (
+              <button key={sc.id} onClick={() => onSample(sc)} disabled={busy || parsing} className="rounded-xl border bg-card p-3 text-left transition hover:border-primary/60 disabled:opacity-60">
+                <span className="block text-sm font-semibold">{sc.title}</span>
+                <span className="block text-xs text-muted-foreground">{sc.blurb}</span>
+              </button>
+            ))}
+          </div>
         </section>
         <section>
           <div
