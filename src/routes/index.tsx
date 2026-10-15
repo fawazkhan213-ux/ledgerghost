@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   type Charge, type Finding, type Settings, type Status, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
-  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, uid,
+  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid,
 } from "@/lib/ledger";
 
 export const Route = createFileRoute("/")({
@@ -93,7 +93,7 @@ function App() {
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {step === "home" && <Home busy={busy} onSample={trySample} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
+        {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
         {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}
         {step === "results" && <Results charges={charges} findings={findings} settings={settings} onBack={() => setStep("review")} />}
       </main>
@@ -107,20 +107,31 @@ function IconBtn({ children, label, onClick }: { children: React.ReactNode; labe
   return <button aria-label={label} onClick={onClick} className="grid h-9 w-9 place-items-center rounded-lg border bg-card hover:bg-secondary">{children}</button>;
 }
 
-function Home({ busy, onSample, onLoaded }: { busy: boolean; onSample: () => void; onLoaded: (c: Charge[], name: string) => void }) {
+function Home({ busy, settings, onSample, onLoaded }: { busy: boolean; settings: Settings; onSample: () => void; onLoaded: (c: Charge[], name: string) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [note, setNote] = useState("");
+  const [parsing, setParsing] = useState(false);
 
   const handle = async (file?: File) => {
     if (!file) return;
+    setNote("");
     if (file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv") {
       const rows = parseCSV(await file.text());
       if (!rows.length) return setNote("Couldn't find any charges in that CSV.");
       onLoaded(rows, file.name);
+    } else if (file.name.toLowerCase().endsWith(".pdf") && !settings.mock) {
+      setParsing(true);
+      try {
+        const text = await extractPdfText(file);
+        if (!text.trim()) throw new Error("No readable text in that PDF (scanned documents aren't supported yet).");
+        const rows = await liveParse(settings, text);
+        if (!rows.length) throw new Error("The parser found no charges in that PDF.");
+        onLoaded(rows, file.name);
+      } catch (e) { setNote((e as Error).message); }
+      finally { setParsing(false); }
     } else {
-      // PDF/image: in mock mode we simulate extraction with the sample set
-      setNote("");
+      // Mock mode or image: simulate extraction with the sample set
       onLoaded(sampleCharges(), `${file.name} (simulated extraction)`);
     }
   };
