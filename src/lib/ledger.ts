@@ -183,7 +183,7 @@ export async function buildAuditPdf(charges: Charge[], findings: Finding[], sour
   let y = H - 60;
   const ensure = (need: number) => { if (y - need < 50) { page = doc.addPage([W, H]); y = H - 60; } };
   const wrap = (text: string, size: number, f = font, maxW = W - MX * 2) => {
-    const words = text.split(/\s+/).filter(Boolean);
+    const words = safe(text).split(/\s+/).filter(Boolean);
     const lines: string[] = [];
     let line = "";
     for (const w of words) {
@@ -201,7 +201,7 @@ export async function buildAuditPdf(charges: Charge[], findings: Finding[], sour
     }
   };
 
-  page.drawText("LedgerGhost Audit Report", { x: MX, y, size: 20, font: bold, color: colors.ink });
+  page.drawText(safe("LedgerGhost Audit Report"), { x: MX, y, size: 20, font: bold, color: colors.ink });
   y -= 18;
   para(`${source} · generated ${new Date().toLocaleString()}`, 9, font, colors.muted);
   y -= 8;
@@ -214,8 +214,8 @@ export async function buildAuditPdf(charges: Charge[], findings: Finding[], sour
     const f = m.get(c.id);
     const st = f?.status ?? "clear";
     ensure(60);
-    page.drawText(`${c.date}  ${c.merchant}`, { x: MX, y, size: 11, font: bold, color: colors.ink });
-    const amt = fmtMoney(c.amount, c.currency);
+    page.drawText(safe(`${c.date}  ${c.merchant}`), { x: MX, y, size: 11, font: bold, color: colors.ink });
+    const amt = safe(fmtMoney(c.amount, c.currency));
     page.drawText(amt, { x: W - MX - bold.widthOfTextAtSize(amt, 11), y, size: 11, font: bold, color: colors.ink });
     y -= 14;
     page.drawText(label[st], { x: MX, y, size: 8, font: bold, color: colors[st] });
