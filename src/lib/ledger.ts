@@ -176,6 +176,8 @@ export async function buildAuditPdf(charges: Charge[], findings: Finding[], sour
   const label = { high: "HIGH RISK", review: "NEEDS REVIEW", clear: "CLEAR" } as const;
   const colors = { high: rgb(0.64, 0, 0), review: rgb(0.48, 0.34, 0), clear: rgb(0.09, 0.39, 0.17), ink: rgb(0.1, 0.1, 0.1), muted: rgb(0.42, 0.42, 0.42) };
 
+  // Standard PDF fonts only support WinAnsi — swap unsupported glyphs
+  const safe = (s: string) => s.replace(/→/g, "->").replace(/≈/g, "~").replace(/·/g, "-").replace(/[–—]/g, "-").replace(/€/g, "EUR ").replace(/£/g, "GBP ").replace(/₹/g, "INR ").replace(/¥/g, "JPY ").replace(/•/g, "-").replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
   const W = 595, H = 842, MX = 48;
   let page = doc.addPage([W, H]);
   let y = H - 60;
