@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Charge review uses labeled mobile editors below the desktop-table breakpoint, sharing the same charge state and update functions so editing stays consistent without horizontal scrolling.
+- Home-screen branding uses static PNG icons derived from the header mark, linked through the root head and a web manifest so iOS and Android can use the same identity.
