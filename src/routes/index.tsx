@@ -158,13 +158,14 @@ function Home({ busy, onSample, onLoaded }: { busy: boolean; onSample: () => voi
 
 const field = "w-full rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
-function Review({ charges, setCharges, source, busy, onRun }: { charges: Charge[]; setCharges: (c: Charge[]) => void; source: string; busy: boolean; onRun: () => void }) {
+function Review({ charges, setCharges, source, busy, onRun, onBack }: { charges: Charge[]; setCharges: (c: Charge[]) => void; source: string; busy: boolean; onRun: () => void; onBack: () => void }) {
   const upd = (id: string, k: keyof Charge, v: string) =>
     setCharges(charges.map((c) => c.id === id ? { ...c, [k]: k === "amount" || k === "priorAmount" ? (v === "" ? (k === "priorAmount" ? null : 0) : parseFloat(v)) : v } : c));
   const add = () => setCharges([...charges, { id: uid(), merchant: "", date: new Date().toISOString().slice(0, 10), category: "Other", description: "", amount: 0, priorAmount: null }]);
   const total = charges.reduce((s, c) => s + (c.amount || 0), 0);
   return (
     <div>
+      <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to upload</button>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div><h2 className="text-2xl font-bold">Review extracted charges</h2><p className="text-sm text-muted-foreground">{source} · {charges.length} items · {money(total)}</p></div>
         <div className="flex gap-2">
