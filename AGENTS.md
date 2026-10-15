@@ -13,3 +13,4 @@
 - Home-screen branding uses static PNG icons derived from the header mark, linked through the root head and a web manifest so iOS and Android can use the same identity.
 - Appearance is owned by a root-mounted ThemeProvider; persist only deliberate changes so page remounts cannot overwrite the saved preference.
 - Avatar uploads use owner-scoped private Storage paths stored in profiles.avatar_url and resolved to signed display URLs; this keeps device-selected photos private without changing the profile schema.
+- Upload privacy copy must match local extraction, external AI processing, and audit-history persistence; preparation progress advances at actual file-reading milestones rather than simulated transfer percentages.
