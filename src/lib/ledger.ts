@@ -31,17 +31,18 @@ export const DEFAULT_SETTINGS: Settings = {
   mock: true,
   apiKey: "",
   baseUrl: "https://api.studio.nebius.com/v1",
-  parseModel: "nvidia/Llama-3_1-Nemotron-Nano-8B-v1",
-  reasonModel: "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+  parseModel: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+  reasonModel: "nvidia/Nemotron-3-Ultra-550b-a55b",
 };
 
 export const PARSE_MODELS = [
-  { id: "nvidia/Llama-3_1-Nemotron-Nano-8B-v1", label: "Nemotron Nano" },
-  { id: "nvidia/Llama-3_3-Nemotron-Super-49B-v1", label: "Nemotron Super" },
+  { id: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B", label: "Nemotron Nano" },
+  { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron Super" },
+  { id: "nvidia/Nemotron-3_5-Lightning", label: "Nemotron Lightning" },
 ];
 export const REASON_MODELS = [
-  { id: "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1", label: "Nemotron Ultra" },
-  { id: "nvidia/Llama-3_3-Nemotron-Super-49B-v1", label: "Nemotron Super" },
+  { id: "nvidia/Nemotron-3-Ultra-550b-a55b", label: "Nemotron Ultra" },
+  { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron Super" },
 ];
 
 let n = 0;
