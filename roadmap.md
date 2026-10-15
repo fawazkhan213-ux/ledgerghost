@@ -1,0 +1,4 @@
+- [x] Add truthful model attribution in demo and live modes.
+- [x] Persist appearance across profile navigation and reloads.
+- [x] Replace avatar URL entry with private image upload.
+- [ ] Verify authenticated profile photo save/readback — blocked until the user signs in through the preview; automatic session minting found no matching account.

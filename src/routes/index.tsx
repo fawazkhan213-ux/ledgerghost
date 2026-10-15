@@ -3,6 +3,7 @@ import { FeatureCards } from "@/components/FeatureCards";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -41,7 +42,7 @@ function App() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
-  const [dark, setDark] = useState(false);
+  const { dark, toggleTheme } = useTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sourceName, setSourceName] = useState("");
@@ -83,12 +84,7 @@ function App() {
       if (!/Nemotron-3|nemotron-3/.test(p.reasonModel)) p.reasonModel = DEFAULT_SETTINGS.reasonModel;
       setSettings(p);
     }
-    setDark(localStorage.getItem("lg-dark") === "1");
   }, []);
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("lg-dark", dark ? "1" : "0");
-  }, [dark]);
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [step]);
   const saveSettings = (s: Settings) => { setSettings(s); localStorage.setItem("lg-settings", JSON.stringify(s)); };
 
@@ -126,7 +122,7 @@ function App() {
               {settings.mock ? <Sparkles /> : <ScanSearch />}
               <span className="hidden lg:inline">{settings.mock ? "Instant Demo" : "Live Nemotron"}</span>
             </Button>
-            <IconBtn label="Toggle theme" onClick={() => setDark(!dark)}>{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</IconBtn>
+            <IconBtn label="Toggle theme" onClick={toggleTheme}>{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</IconBtn>
             <IconBtn label="AI settings" onClick={() => setShowSettings(true)}><Cog className="h-4 w-4" /></IconBtn>
             {ready && <AccountMenu user={user} profile={profile} />}
           </div>
@@ -134,6 +130,12 @@ function App() {
       </header>
 
       <main className="mx-auto min-w-0 max-w-6xl px-4 py-5 sm:py-8">
+        <div className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 border-b pb-3 text-xs text-muted-foreground" aria-label="AI model attribution">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <span className="font-medium text-foreground">NVIDIA Nemotron · Nebius</span>
+          <span>{PARSE_MODELS.find((m) => m.id === settings.parseModel)?.label ?? "Nemotron Nano"} + {REASON_MODELS.find((m) => m.id === settings.reasonModel)?.label ?? "Nemotron Ultra"}</span>
+          {settings.mock && <span className="text-muted-foreground">· Demo uses simulated results</span>}
+        </div>
         {error && <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {step === "home" && <Home busy={busy} settings={settings} onSample={trySample} history={history} onOpenRecord={openRecord} onDeleteRecord={deleteRecord} onLoaded={(c, name) => { setCharges(c); setSourceName(name); setFindings([]); setStep("review"); }} />}
         {step === "review" && <Review charges={charges} setCharges={setCharges} source={sourceName} busy={busy} onRun={() => runAudit()} onBack={() => setStep("home")} />}

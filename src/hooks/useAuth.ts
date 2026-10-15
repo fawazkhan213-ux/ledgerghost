@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveAvatar } from "@/lib/avatars";
 
-export type Profile = { display_name: string | null; avatar_url: string | null };
+export type Profile = { display_name: string | null; avatar_url: string | null; avatar_path?: string | null };
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -12,7 +13,7 @@ export function useAuth() {
   const loadProfile = useCallback(async (u: User | null) => {
     if (!u) { setProfile(null); return; }
     const { data } = await supabase.from("profiles").select("display_name, avatar_url").eq("id", u.id).maybeSingle();
-    setProfile(data ?? { display_name: u.email?.split("@")[0] ?? null, avatar_url: null });
+    setProfile(data ? { ...data, avatar_path: data.avatar_url, avatar_url: await resolveAvatar(data.avatar_url) } : { display_name: u.email?.split("@")[0] ?? null, avatar_url: null });
   }, []);
 
   useEffect(() => {
