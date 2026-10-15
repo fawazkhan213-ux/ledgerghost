@@ -39,6 +39,20 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sourceName, setSourceName] = useState("");
+  const [history, setHistory] = useState<AuditRecord[]>(loadHistory);
+
+  const saveRecord = (source: string, list: Charge[], f: Finding[]) => {
+    const rec: AuditRecord = { id: uid(), at: Date.now(), source, charges: list, findings: f };
+    const next = [rec, ...history].slice(0, 20);
+    setHistory(next);
+    localStorage.setItem("lg-history", JSON.stringify(next));
+  };
+  const deleteRecord = (id: string) => {
+    const next = history.filter((r) => r.id !== id);
+    setHistory(next);
+    localStorage.setItem("lg-history", JSON.stringify(next));
+  };
+  const openRecord = (r: AuditRecord) => { setCharges(r.charges); setFindings(r.findings); setSourceName(r.source); setStep("results"); };
 
   useEffect(() => {
     const s = localStorage.getItem("lg-settings");
@@ -62,11 +76,12 @@ function App() {
       await new Promise((r) => setTimeout(r, 1100));
       const f = settings.mock ? mockAudit(list) : await liveAudit(settings, list);
       setFindings(f); setStep("results");
+      saveRecord(sourceName || "Untitled audit", list, f);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
 
-  const trySample = () => { const s = sampleCharges(); setCharges(s); setSourceName("Sample statement — Sept 2026"); runAudit(s); };
+  const trySample = () => { const s = sampleCharges(); setSourceName("Sample statement — Sept 2026"); setCharges(s); runAudit(s); };
 
   return (
     <div className="min-h-screen">
