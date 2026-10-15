@@ -1,0 +1,3 @@
+- [ ] Add truthful model attribution in demo and live modes.
+- [ ] Persist appearance across profile navigation and reloads.
+- [ ] Replace avatar URL entry with private image upload and verify save/readback.
