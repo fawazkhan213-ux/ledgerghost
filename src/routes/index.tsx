@@ -52,7 +52,7 @@ function App() {
     setBusy(true); setError("");
     try {
       await new Promise((r) => setTimeout(r, 1100));
-      const f = settings.mock || !settings.apiKey ? mockAudit(list) : await liveAudit(settings, list);
+      const f = settings.mock ? mockAudit(list) : await liveAudit(settings, list);
       setFindings(f); setStep("results");
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
@@ -294,7 +294,7 @@ function LetterDrawer({ charge, finding, settings, onClose }: { charge: Charge; 
     (async () => {
       setLoading(true);
       try {
-        const t = settings.mock || !settings.apiKey ? (await new Promise((r) => setTimeout(r, 700)), draftLetter(charge, finding)) : await liveLetter(settings, charge, finding);
+        const t = settings.mock ? (await new Promise((r) => setTimeout(r, 700)), draftLetter(charge, finding)) : await liveLetter(settings, charge, finding);
         if (live) setText(t);
       } catch (e) { if (live) setText(`${draftLetter(charge, finding)}\n\n[Live drafting failed: ${(e as Error).message}. Showing template draft.]`); }
       finally { if (live) setLoading(false); }
@@ -333,7 +333,7 @@ function SettingsModal({ settings, onSave, onClose }: { settings: Settings; onSa
         </label>
         <fieldset disabled={s.mock} className="mt-4 space-y-3 disabled:opacity-50">
           <p className="font-mono text-xs uppercase text-muted-foreground">Nebius Token Factory · NVIDIA Nemotron</p>
-          <Lbl t="API key"><input type="password" className={field} placeholder="nb-…" value={s.apiKey} onChange={(e) => setS({ ...s, apiKey: e.target.value })} /></Lbl>
+          <Lbl t="API key"><input type="password" className={field} placeholder="Optional — uses the saved server key" value={s.apiKey} onChange={(e) => setS({ ...s, apiKey: e.target.value })} /></Lbl>
           <Lbl t="Base URL"><input className={`${field} font-mono`} value={s.baseUrl} onChange={(e) => setS({ ...s, baseUrl: e.target.value })} /></Lbl>
           <Lbl t="Parsing model"><select className={field} value={s.parseModel} onChange={(e) => setS({ ...s, parseModel: e.target.value })}>{PARSE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Lbl>
           <Lbl t="Reasoning & dispute drafting model"><select className={field} value={s.reasonModel} onChange={(e) => setS({ ...s, reasonModel: e.target.value })}>{REASON_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Lbl>

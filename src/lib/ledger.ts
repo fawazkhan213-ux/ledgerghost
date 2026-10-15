@@ -1,3 +1,4 @@
+import { nebiusChat } from "./nebius.functions";
 export type Charge = {
   id: string;
   merchant: string;
@@ -158,7 +159,6 @@ export function parseCSV(text: string): Charge[] {
 }
 
 async function chat(s: Settings, model: string, system: string, user: string) {
-  const { nebiusChat } = await import("./nebius.functions");
   const r = await nebiusChat({ data: { apiKey: s.apiKey || undefined, baseUrl: s.baseUrl, model, system, user } });
   if (!r.ok) throw new Error(r.error);
   return r.content;
