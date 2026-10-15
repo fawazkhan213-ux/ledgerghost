@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Ghost, Upload, Sparkles, Settings as Cog, Moon, Sun, Plus, Trash2, ArrowLeft, ShieldAlert,
-  ShieldCheck, AlertTriangle, X, Copy, Download, FileText, Loader2, Check, ScanSearch,
+  ShieldCheck, AlertTriangle, X, Copy, Download, FileText, Loader2, Check, ScanSearch, History,
 } from "lucide-react";
 import {
   type Charge, type Finding, type Settings, type Status, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
@@ -25,6 +25,9 @@ export const Route = createFileRoute("/")({
 
 type Step = "home" | "review" | "results";
 const money = (n: number) => `$${n.toFixed(2)}`;
+
+type AuditRecord = { id: string; at: number; source: string; charges: Charge[]; findings: Finding[] };
+const loadHistory = (): AuditRecord[] => { try { return JSON.parse(localStorage.getItem("lg-history") ?? "[]"); } catch { return []; } };
 
 function App() {
   const [step, setStep] = useState<Step>("home");
