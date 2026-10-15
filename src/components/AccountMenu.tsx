@@ -4,6 +4,7 @@ import { LogOut, UserRound } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 
 export function Avatar({ profile, user, size = 32 }: { profile: Profile | null; user: User; size?: number }) {
   const name = profile?.display_name || user.email || "?";
@@ -25,19 +26,19 @@ export function AccountMenu({ user, profile }: { user: User | null; profile: Pro
   const signOut = async () => { setOpen(false); await supabase.auth.signOut(); navigate({ to: "/", replace: true }); };
   return (
     <div className="relative">
-      <button aria-label="Account menu" onClick={() => setOpen(!open)} className="rounded-full ring-offset-2 ring-offset-background hover:ring-2 hover:ring-primary/50">
+      <Button variant="ghost" size="icon" aria-label="Account menu" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-full ring-offset-2 ring-offset-background hover:ring-2 hover:ring-primary/50">
         <Avatar profile={profile} user={user} />
-      </button>
+      </Button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border bg-popover p-1 text-popover-foreground shadow-xl">
+          <div className="absolute right-0 z-50 mt-2 w-56 rounded-lg border bg-card p-1 text-card-foreground shadow-xl">
             <div className="px-3 py-2">
               <p className="truncate text-sm font-semibold">{profile?.display_name || "Your account"}</p>
               <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             </div>
             <Link to="/account" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-secondary"><UserRound className="h-4 w-4" /> Profile</Link>
-            <button onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-secondary"><LogOut className="h-4 w-4" /> Sign out</button>
+            <Button variant="ghost" onClick={signOut} className="w-full justify-start px-3"><LogOut className="h-4 w-4" /> Sign out</Button>
           </div>
         </>
       )}
