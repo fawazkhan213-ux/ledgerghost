@@ -168,9 +168,9 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
     const all: Charge[] = [];
     const errs: string[] = [];
     const simulated = settings.mock || files.some((f) => !/\.(csv|pdf)$/i.test(f.name));
-    for (let i = 0; i < files.length; i++) {
-      setProgress(`${files[i].name} (${i + 1}/${files.length})`);
-      try { all.push(...(await parseOne(files[i]))); }
+    for (const [i, f] of files.entries()) {
+      setProgress(`${f.name} (${i + 1}/${files.length})`);
+      try { all.push(...(await parseOne(f))); }
       catch (e) { errs.push((e as Error).message); }
     }
     setParsing(false); setProgress("");
