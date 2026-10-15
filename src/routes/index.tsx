@@ -39,7 +39,12 @@ function App() {
 
   useEffect(() => {
     const s = localStorage.getItem("lg-settings");
-    if (s) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(s) });
+    if (s) {
+      const p = { ...DEFAULT_SETTINGS, ...JSON.parse(s) } as Settings;
+      if (!/Nemotron-3|nemotron-3/.test(p.parseModel)) p.parseModel = DEFAULT_SETTINGS.parseModel;
+      if (!/Nemotron-3|nemotron-3/.test(p.reasonModel)) p.reasonModel = DEFAULT_SETTINGS.reasonModel;
+      setSettings(p);
+    }
     setDark(localStorage.getItem("lg-dark") === "1");
   }, []);
   useEffect(() => {
