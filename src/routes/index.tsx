@@ -299,7 +299,7 @@ function Review({ charges, setCharges, source, busy, onRun, onBack }: { charges:
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to upload</button>
       <div className="mb-5 grid min-w-0 gap-4 sm:flex sm:items-end sm:justify-between">
-        <div className="min-w-0"><h2 className="text-xl font-bold sm:text-2xl">Review extracted charges</h2><p className="mt-1 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{source}</p><p className="mt-1 text-sm text-muted-foreground">{charges.length} items · {money(total, charges[0]?.currency)}</p></div>
+        <div className="min-w-0"><h1 className="text-xl font-bold sm:text-2xl">Review extracted charges</h1><p className="mt-1 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{source}</p><p className="mt-1 text-sm text-muted-foreground">{charges.length} items · {money(total, charges[0]?.currency)}</p></div>
         <div className="grid grid-cols-2 gap-2 sm:flex">
           <button onClick={add} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border bg-card px-3 py-2 text-sm hover:bg-secondary"><Plus className="h-4 w-4" /> Add charge</button>
           <button onClick={onRun} disabled={busy || !charges.length} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
@@ -394,7 +394,7 @@ function Results({ charges, findings, settings, source, onBack }: { charges: Cha
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Edit charges</button>
       <div className="grid min-w-0 gap-3 sm:flex sm:items-center sm:justify-between">
-        <h2 className="text-2xl font-bold">Audit findings</h2>
+        <h1 className="text-2xl font-bold">Audit findings</h1>
         <div className="flex gap-2">
           <button onClick={() => exportFile(auditCSV(charges, findings), "ledgerghost-audit.csv", "text/csv")} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><Download className="h-4 w-4" /> CSV</button>
           <button
