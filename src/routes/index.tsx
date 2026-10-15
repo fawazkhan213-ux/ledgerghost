@@ -7,11 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Ghost, Upload, Sparkles, Settings as Cog, Moon, Sun, Plus, Trash2, ArrowLeft, ShieldAlert,
-  ShieldCheck, AlertTriangle, X, Copy, Download, FileText, Loader2, Check, ScanSearch, History,
+  ShieldCheck, AlertTriangle, X, Copy, Download, FileText, Loader2, Check, ScanSearch, History, TrendingUp,
 } from "lucide-react";
 import {
-  type Charge, type Finding, type Settings, type Status, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
-  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid,
+  type Charge, type Finding, type Settings, type Status, type Trend, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
+  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid, mockTrends, liveTrends,
 } from "@/lib/ledger";
 
 export const Route = createFileRoute("/")({
@@ -351,6 +351,7 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
         <Stat label="Potential overcharges" value={String(flagged.length)} sub={`${findings.filter((f) => f.status === "high").length} high risk`} tone="destructive" />
         <Stat label="Savings opportunity" value={money(savings)} sub={`≈ ${money(savings * 12)}/yr if recurring`} tone="primary" />
       </div>
+      <PriceWatch charges={charges} settings={settings} />
       <div className="mt-6 flex gap-1 text-sm">
         {(["all", "flagged"] as const).map((f) => <button key={f} onClick={() => setFilter(f)} className={`rounded-md px-3 py-1.5 capitalize ${filter === f ? "bg-secondary font-medium" : "text-muted-foreground"}`}>{f}</button>)}
       </div>
@@ -393,6 +394,57 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
         </Drawer>
       )}
       {letterC && <LetterDrawer charge={letterC} finding={map.get(letterC.id)!} settings={settings} onClose={() => setLetterFor(null)} />}
+    </div>
+  );
+}
+
+function PriceWatch({ charges, settings }: { charges: Charge[]; settings: Settings }) {
+  const [trends, setTrends] = useState<Trend[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setErr(null); setTrends(null);
+    try { setTrends(settings.mock ? mockTrends(charges) : await liveTrends(settings, charges)); }
+    catch (e) { setErr(e instanceof Error ? e.message : "Could not analyze price trends."); setTrends([]); }
+  };
+  useEffect(() => { void run(); }, [charges, settings.mock]); // eslint-disable-line react-hooks/exhaustive-deps
+  const label: Record<Trend["verdict"], string> = { hike: "Price hike", stable: "Stable", "promo-ended": "Promo ended", "above-market": "Above market" };
+  return (
+    <section className="mt-6 rounded-xl border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="flex items-center gap-2 font-semibold"><TrendingUp className="h-4 w-4 text-primary" /> 6-month price watch</h3>
+          <p className="text-xs text-muted-foreground">Price history for your subscriptions — no past bills needed.{settings.mock ? " (Demo data)" : " Estimated by AI from public pricing; verify before disputing."}</p>
+        </div>
+        <button onClick={run} className="text-xs text-muted-foreground hover:text-foreground">Refresh</button>
+      </div>
+      {trends === null ? <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Checking price history…</p>
+      : err ? <p className="mt-4 text-sm text-destructive">{err}</p>
+      : !trends.length ? <p className="mt-4 text-sm text-muted-foreground">No recurring subscriptions detected.</p>
+      : <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {trends.map((t) => (
+            <div key={t.merchant} className="rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0"><p className="truncate font-medium">{t.merchant}</p><p className="truncate text-xs text-muted-foreground">{t.service}</p></div>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${t.verdict === "stable" ? "bg-secondary text-muted-foreground" : "bg-destructive/15 text-destructive"}`}>{label[t.verdict] ?? t.verdict}{t.changePct ? ` +${Math.round(t.changePct)}%` : ""}</span>
+              </div>
+              <Spark data={t.history} />
+              <p className="text-sm">{t.insight}</p>
+              <p className="mt-1 text-xs text-muted-foreground">💡 {t.tip}</p>
+            </div>
+          ))}
+        </div>}
+    </section>
+  );
+}
+
+function Spark({ data }: { data: { month: string; price: number }[] }) {
+  const ps = data.map((d) => Number(d.price) || 0);
+  const min = Math.min(...ps), max = Math.max(...ps), r = max - min || 1;
+  const pts = ps.map((p, i) => `${(i / Math.max(ps.length - 1, 1)) * 100},${30 - ((p - min) / r) * 24 - 3}`).join(" ");
+  return (
+    <div className="my-2">
+      <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="h-10 w-full"><polyline points={pts} fill="none" stroke="var(--primary)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" /></svg>
+      <div className="flex justify-between font-mono text-[10px] text-muted-foreground"><span>{data[0]?.month} {money(ps[0] ?? 0)}</span><span>{data.at(-1)?.month} {money(ps.at(-1) ?? 0)}</span></div>
     </div>
   );
 }
