@@ -61,7 +61,7 @@ const FEATURES = [
 export function FeatureCards() {
   const [open, setOpen] = useState<number | null>(null);
   return (
-    <ul className="mt-6 grid gap-3 sm:grid-cols-3">
+    <ul className="mt-6 grid items-start gap-3 sm:grid-cols-3">
       {FEATURES.map(({ t, d, Art }, i) => {
         const isOpen = open === i;
         return (

@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { FeatureCards } from "@/components/FeatureCards";
+import { AccountMenu } from "@/components/AccountMenu";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Ghost, Upload, Sparkles, Settings as Cog, Moon, Sun, Plus, Trash2, ArrowLeft, ShieldAlert,
@@ -40,17 +43,32 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sourceName, setSourceName] = useState("");
-  const [history, setHistory] = useState<AuditRecord[]>(loadHistory);
+  const [history, setHistory] = useState<AuditRecord[]>([]);
+  const { user, profile, ready } = useAuth();
 
-  const saveRecord = (source: string, list: Charge[], f: Finding[]) => {
+  useEffect(() => {
+    if (!ready) return;
+    if (!user) { setHistory(loadHistory()); return; }
+    supabase.from("audits").select("id, record, created_at").order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => setHistory((data ?? []).map((r) => ({ ...(r.record as unknown as AuditRecord), id: r.id }))));
+  }, [user, ready]);
+
+  const saveRecord = async (source: string, list: Charge[], f: Finding[]) => {
     const rec: AuditRecord = { id: uid(), at: Date.now(), source, charges: list, findings: f };
+    if (user) {
+      const { data } = await supabase.from("audits").insert({ user_id: user.id, record: rec as never }).select("id").single();
+      if (data) rec.id = data.id;
+      setHistory((h) => [rec, ...h]);
+      return;
+    }
     const next = [rec, ...history].slice(0, 20);
     setHistory(next);
     localStorage.setItem("lg-history", JSON.stringify(next));
   };
-  const deleteRecord = (id: string) => {
+  const deleteRecord = async (id: string) => {
     const next = history.filter((r) => r.id !== id);
     setHistory(next);
+    if (user) { await supabase.from("audits").delete().eq("id", id); return; }
     localStorage.setItem("lg-history", JSON.stringify(next));
   };
   const openRecord = (r: AuditRecord) => { setCharges(r.charges); setFindings(r.findings); setSourceName(r.source); setStep("results"); };
@@ -106,6 +124,7 @@ function App() {
             </span>
             <IconBtn label="Toggle theme" onClick={() => setDark(!dark)}>{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</IconBtn>
             <IconBtn label="AI settings" onClick={() => setShowSettings(true)}><Cog className="h-4 w-4" /></IconBtn>
+            {ready && <AccountMenu user={user} profile={profile} />}
           </div>
         </div>
       </header>
