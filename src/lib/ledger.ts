@@ -89,6 +89,80 @@ export const SAMPLE: Omit<Charge, "id">[] = [
 
 export const sampleCharges = (): Charge[] => SAMPLE.map((c) => ({ ...c, id: uid() }));
 
+export type Scenario = { id: string; title: string; blurb: string; source: string; charges: Omit<Charge, "id">[] };
+
+export const SCENARIOS: Scenario[] = [
+  { id: "household", title: "Household mix", blurb: "Telecom surcharge, SaaS bump, delivery fee", source: "Sample statement — Sept 2026", charges: SAMPLE },
+  {
+    id: "saas", title: "SaaS creep", blurb: "Seat bumps, duplicate billing, tier hikes", source: "Startup card — Sept 2026",
+    charges: [
+      { merchant: "Slackr", date: "2026-09-01", category: "Software", description: "Pro plan – 12 seats", amount: 105.0, priorAmount: 87.5 },
+      { merchant: "Figment", date: "2026-09-02", category: "Software", description: "Professional – 3 editors", amount: 45.0, priorAmount: 45.0 },
+      { merchant: "Figment", date: "2026-09-02", category: "Software", description: "Professional – 3 editors", amount: 45.0, priorAmount: 45.0 },
+      { merchant: "Notionly", date: "2026-09-05", category: "Software", description: "Plus plan – monthly", amount: 24.0, priorAmount: 20.0 },
+      { merchant: "MailRocket", date: "2026-09-08", category: "Marketing", description: "Growth plan", amount: 79.0, priorAmount: 79.0 },
+      { merchant: "MailRocket", date: "2026-09-08", category: "Marketing", description: "Payment processing fee", amount: 2.37, priorAmount: null },
+      { merchant: "GitVault", date: "2026-09-10", category: "Software", description: "Team – 5 users", amount: 20.0, priorAmount: 20.0 },
+    ],
+  },
+  {
+    id: "eu", title: "EU utilities & telco", blurb: "Euro bill with recovery & admin fees", source: "Rechnung — September 2026",
+    charges: [
+      { merchant: "Telekon DE", date: "2026-09-02", category: "Telecom", description: "MagentaMobil L", amount: 49.95, priorAmount: 39.95, currency: "EUR" },
+      { merchant: "Telekon DE", date: "2026-09-02", category: "Telecom", description: "Network recovery surcharge", amount: 4.99, priorAmount: null, currency: "EUR" },
+      { merchant: "Stadtwerke Nord", date: "2026-09-05", category: "Utilities", description: "Strom – Abschlag Sept", amount: 112.0, priorAmount: 98.0, currency: "EUR" },
+      { merchant: "Stadtwerke Nord", date: "2026-09-05", category: "Utilities", description: "Administrative billing fee", amount: 3.5, priorAmount: null, currency: "EUR" },
+      { merchant: "Vodaweb", date: "2026-09-09", category: "Internet", description: "Glasfaser 500", amount: 44.99, priorAmount: 44.99, currency: "EUR" },
+      { merchant: "Lieferblitz", date: "2026-09-14", category: "Groceries", description: "Service & delivery fee", amount: 5.9, priorAmount: null, currency: "EUR" },
+    ],
+  },
+  {
+    id: "cloud", title: "Cloud & tools (GBP)", blurb: "Ghost support add-on, surprise overage", source: "Business account — Sept 2026",
+    charges: [
+      { merchant: "NimbusCloud", date: "2026-09-01", category: "Infrastructure", description: "Compute – monthly", amount: 310.0, priorAmount: 240.0, currency: "GBP" },
+      { merchant: "NimbusCloud", date: "2026-09-01", category: "Infrastructure", description: "Premium support plan (auto-enrolled) – convenience add-on", amount: 29.0, priorAmount: null, currency: "GBP" },
+      { merchant: "EdgeCDN", date: "2026-09-03", category: "Infrastructure", description: "Bandwidth – 2TB", amount: 64.0, priorAmount: 61.0, currency: "GBP" },
+      { merchant: "DomainHub", date: "2026-09-06", category: "Web", description: "Domain auto-renewal", amount: 18.99, priorAmount: 12.99, currency: "GBP" },
+      { merchant: "LogStack", date: "2026-09-11", category: "Software", description: "Observability – Team", amount: 49.0, priorAmount: 49.0, currency: "GBP" },
+      { merchant: "LogStack", date: "2026-09-11", category: "Software", description: "Observability – Team", amount: 49.0, priorAmount: 49.0, currency: "GBP" },
+    ],
+  },
+];
+
+export const scenarioCharges = (s: Scenario): Charge[] => s.charges.map((c) => ({ ...c, id: uid() }));
+
+const csvCell = (v: unknown) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+
+export function auditCSV(charges: Charge[], findings: Finding[]): string {
+  const m = new Map(findings.map((f) => [f.chargeId, f]));
+  const head = ["Merchant", "Date", "Category", "Description", "Amount", "Prior amount", "Currency", "Status", "Potential overcharge", "Reason"];
+  const rows = charges.map((c) => { const f = m.get(c.id); return [c.merchant, c.date, c.category, c.description, c.amount.toFixed(2), c.priorAmount ?? "", c.currency ?? "USD", f?.status ?? "", f?.overcharge?.toFixed(2) ?? "", f?.reason ?? ""]; });
+  return [head, ...rows].map((r) => r.map(csvCell).join(",")).join("\n");
+}
+
+const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
+
+export function auditReportHTML(charges: Charge[], findings: Finding[], source: string): string {
+  const m = new Map(findings.map((f) => [f.chargeId, f]));
+  const cur = charges[0]?.currency;
+  const flagged = findings.filter((f) => f.status !== "clear");
+  const total = charges.reduce((s, c) => s + c.amount, 0);
+  const savings = flagged.reduce((s, f) => s + f.overcharge, 0);
+  const label = { high: "High risk", review: "Needs review", clear: "Clear" } as const;
+  const rows = charges.map((c) => { const f = m.get(c.id); const st = f?.status ?? "clear"; return `<tr><td>${esc(c.date)}</td><td><b>${esc(c.merchant)}</b><br><small>${esc(c.description)}</small></td><td class="r">${fmtMoney(c.amount, c.currency)}</td><td><span class="b ${st}">${label[st]}</span></td><td>${f && st !== "clear" ? esc(f.reason) + (f.details.length ? `<ul>${f.details.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>` : "") : ""}</td></tr>`; }).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>LedgerGhost Audit Report</title><style>
+body{font:14px/1.5 system-ui,sans-serif;color:#111;max-width:900px;margin:32px auto;padding:0 24px}h1{margin:0}small,.muted{color:#666}
+.stats{display:flex;gap:12px;margin:20px 0}.stats div{flex:1;border:1px solid #ddd;border-radius:10px;padding:12px}.stats b{display:block;font-size:22px}
+table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left;vertical-align:top}.r{text-align:right;font-family:monospace;white-space:nowrap}
+.b{font-size:11px;padding:2px 8px;border-radius:99px;white-space:nowrap}.high{background:#fde2e2;color:#a40000}.review{background:#fff2cc;color:#7a5600}.clear{background:#dff5e3;color:#16632b}ul{margin:4px 0 0 16px;padding:0;color:#555}
+@media print{.np{display:none}}</style></head><body>
+<button class="np" onclick="print()" style="float:right;padding:8px 14px">Print / Save as PDF</button>
+<h1>LedgerGhost Audit Report</h1><p class="muted">${esc(source)} · generated ${new Date().toLocaleString()}</p>
+<div class="stats"><div><small>Total audited</small><b>${fmtMoney(total, cur)}</b><small>${charges.length} charges</small></div><div><small>Flagged charges</small><b>${flagged.length}</b><small>${findings.filter((f) => f.status === "high").length} high risk</small></div><div><small>Savings opportunity</small><b>${fmtMoney(savings, cur)}</b><small>≈ ${fmtMoney(savings * 12, cur)}/yr if recurring</small></div></div>
+<table><thead><tr><th>Date</th><th>Charge</th><th class="r">Amount</th><th>Status</th><th>Finding</th></tr></thead><tbody>${rows}</tbody></table>
+<p class="muted" style="margin-top:24px">Findings are automated estimates. Verify with your merchant before disputing.</p></body></html>`;
+}
+
 const FEE_RX = /(surcharge|recovery|regulatory|administrative|admin fee|service fee|convenience|processing|maintenance fee|delivery fee|service & delivery|facility)/i;
 
 export function mockAudit(charges: Charge[]): Finding[] {
