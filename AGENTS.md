@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Charge review uses labeled mobile editors below the desktop-table breakpoint, sharing the same charge state and update functions so editing stays consistent without horizontal scrolling.
