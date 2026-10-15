@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { FeatureCards } from "@/components/FeatureCards";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Ghost, Upload, Sparkles, Settings as Cog, Moon, Sun, Plus, Trash2, ArrowLeft, ShieldAlert,
@@ -188,11 +189,7 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 font-mono text-xs text-muted-foreground"><ScanSearch className="h-3.5 w-3.5" /> autonomous billing auditor</p>
           <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">Your statement has ghosts.<br /><span className="text-primary">We find them.</span></h1>
           <p className="mt-4 max-w-lg text-lg text-muted-foreground">LedgerGhost reads your statements and invoices, flags charges that quietly crept up, and drafts polite dispute letters so you can get your money back.</p>
-          <ul className="mt-6 grid gap-3 sm:grid-cols-3">
-            {[["Stealth price hikes", "Plans that bumped without notice"], ["Duplicate line items", "Same charge billed twice"], ["Quiet fees", "Service, recovery & delivery add-ons"]].map(([t, d]) => (
-              <li key={t} className="rounded-xl border bg-card p-3"><p className="text-sm font-semibold">{t}</p><p className="text-xs text-muted-foreground">{d}</p></li>
-            ))}
-          </ul>
+          <FeatureCards />
           <button onClick={onSample} disabled={busy || parsing} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-60">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {busy ? "Auditing sample…" : "Try Sample Statement Audit"}
           </button>
