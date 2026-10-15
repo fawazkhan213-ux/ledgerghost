@@ -7,7 +7,32 @@ export type Charge = {
   description: string;
   amount: number;
   priorAmount?: number | null;
+  currency?: string;
 };
+
+const CURRENCY_SIGNS: [RegExp, string][] = [
+  [/€|\bEUR\b/i, "EUR"],
+  [/£|\bGBP\b/i, "GBP"],
+  [/₹|\bINR\b/i, "INR"],
+  [/¥|\bJPY\b|\bCNY\b/i, "JPY"],
+  [/\bSEK\b|\bNOK\b|\bDKK\b|\bkr\b/i, "SEK"],
+  [/\bCHF\b/i, "CHF"],
+  [/\bAED\b/i, "AED"],
+  [/\$|\bUSD\b/i, "USD"],
+];
+
+export function detectCurrency(text: string): string {
+  for (const [rx, code] of CURRENCY_SIGNS) if (rx.test(text)) return code;
+  return "USD";
+}
+
+export function fmtMoney(n: number, currency = "USD"): string {
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency }).format(n);
+  } catch {
+    return `${currency} ${n.toFixed(2)}`;
+  }
+}
 
 export type Status = "clear" | "review" | "high";
 
@@ -82,13 +107,13 @@ export function mockAudit(charges: Charge[]): Finding[] {
       status = "high";
       overcharge = c.amount;
       reason = "Duplicate line item: identical charge billed twice on the same date.";
-      details.push(`Matches another ${c.merchant} charge of $${c.amount.toFixed(2)} on ${c.date}.`, "Recurring subscriptions should bill once per period.");
+      details.push(`Matches another ${c.merchant} charge of ${fmtMoney(c.amount, c.currency)} on ${c.date}.`, "Recurring subscriptions should bill once per period.");
     } else if (c.priorAmount && c.amount > c.priorAmount * 1.05) {
       const pct = ((c.amount - c.priorAmount) / c.priorAmount) * 100;
       status = pct >= 15 ? "high" : "review";
       overcharge = +(c.amount - c.priorAmount).toFixed(2);
       reason = `Price increased ${pct.toFixed(0)}% compared to prior period without notice.`;
-      details.push(`Prior period: $${c.priorAmount.toFixed(2)} → Current: $${c.amount.toFixed(2)}.`, pct >= 15 ? "Increase exceeds typical 5–10% annual adjustment — likely a stealth plan bump." : "Could be usage-based; verify against your meter reading or usage.");
+      details.push(`Prior period: ${fmtMoney(c.priorAmount, c.currency)} → Current: ${fmtMoney(c.amount, c.currency)}.`, pct >= 15 ? "Increase exceeds typical 5–10% annual adjustment — likely a stealth plan bump." : "Could be usage-based; verify against your meter reading or usage.");
     } else if (FEE_RX.test(c.description)) {
       status = /regulatory|recovery|surcharge|administrative/i.test(c.description) ? "high" : "review";
       overcharge = c.amount;
@@ -112,7 +137,7 @@ ${today}
 ${c.merchant}
 Customer Billing Department
 
-Re: Request for review of charge dated ${c.date} — $${c.amount.toFixed(2)}
+Re: Request for review of charge dated ${c.date} — ${fmtMoney(c.amount, c.currency)}
 
 Dear ${c.merchant} Billing Team,
 
@@ -120,11 +145,11 @@ I am writing to respectfully request a review of the following charge on my rece
 
   • Description: ${c.description}
   • Date: ${c.date}
-  • Amount: $${c.amount.toFixed(2)}
+  • Amount: ${fmtMoney(c.amount, c.currency)}
 
 Upon reviewing my account, I noticed the following: ${f.reason} ${f.details.join(" ")}
 
-I do not recall receiving prior notice of this charge or change. I would be grateful if you could review it and, if appropriate, issue a refund or credit of $${f.overcharge.toFixed(2)} to my account. If the charge is valid, I would appreciate an itemized explanation of what it covers.
+I do not recall receiving prior notice of this charge or change. I would be grateful if you could review it and, if appropriate, issue a refund or credit of ${fmtMoney(f.overcharge, c.currency)} to my account. If the charge is valid, I would appreciate an itemized explanation of what it covers.
 
 Thank you for your time and attention. I value my relationship with ${c.merchant} and look forward to your response within 30 days.
 
@@ -145,16 +170,26 @@ export function parseCSV(text: string): Charge[] {
   const ic = hasHead ? idx("category", "type") : 2;
   const ides = hasHead ? idx("description", "memo", "detail") : 3;
   const ia = hasHead ? idx("amount", "debit", "total") : 4;
+  const icur = hasHead ? idx("currency") : -1;
+  const fileCur = detectCurrency(text);
   return lines.slice(hasHead ? 1 : 0).map((l) => {
     const r = split(l);
+    const rawAmt = r[ia] ?? "0";
+    const rowCur = icur >= 0 && /^[A-Za-z]{3}$/.test(r[icur] ?? "") ? (r[icur] as string).toUpperCase() : /[€£₹¥]|\b(EUR|GBP|INR|JPY|USD|SEK|CHF|AED)\b/i.test(rawAmt) ? detectCurrency(rawAmt) : fileCur;
+    const cleaned = rawAmt.replace(/[^0-9.,-]/g, "");
+    // European format: "1.234,56" or "84,37" → comma is the decimal separator
+    const amount = /,\d{1,2}$/.test(cleaned) && (!cleaned.includes(".") || cleaned.lastIndexOf(",") > cleaned.lastIndexOf("."))
+      ? Math.abs(parseFloat(cleaned.replace(/\./g, "").replace(",", ".")) || 0)
+      : Math.abs(parseFloat(cleaned.replace(/,/g, "")) || 0);
     return {
       id: uid(),
       merchant: r[im] ?? "Unknown",
       date: r[id] ?? "",
       category: ic >= 0 ? r[ic] ?? "Other" : "Other",
       description: ides >= 0 ? r[ides] ?? "" : "",
-      amount: Math.abs(parseFloat((r[ia] ?? "0").replace(/[^0-9.-]/g, "")) || 0),
+      amount,
       priorAmount: null,
+      currency: rowCur,
     };
   });
 }
@@ -182,20 +217,21 @@ export async function liveParse(s: Settings, text: string): Promise<Charge[]> {
   const out = await chat(
     s,
     s.parseModel,
-    "You are a statement parser. Extract every charge/transaction from the statement text. Return ONLY a JSON array of objects {merchant,date,category,description,amount,priorAmount}. date as YYYY-MM-DD, amount as positive number, priorAmount as last period's amount for the same item or null. No commentary.",
+    "You are a statement parser. Extract every charge/transaction from the statement text. Return ONLY a JSON array of objects {merchant,date,category,description,amount,priorAmount,currency}. date as YYYY-MM-DD, amount as positive number, priorAmount as last period's amount for the same item or null. currency as the 3-letter ISO code of the currency the charge is billed in (e.g. EUR, GBP, USD, INR) — read it from the currency symbol or label in the statement (€ = EUR, £ = GBP, ₹ = INR, $ = USD); never assume USD when another currency is shown. No commentary.",
     text,
   );
   const m = out.match(/\[[\s\S]*\]/);
   if (!m) throw new Error("Parser returned no charges");
   const rows = JSON.parse(m[0]) as Omit<Charge, "id">[];
-  return rows.map((r) => ({ ...r, id: uid(), amount: Math.abs(Number(r.amount) || 0), priorAmount: r.priorAmount != null ? Number(r.priorAmount) : null }));
+  const fileCur = detectCurrency(text);
+  return rows.map((r) => ({ ...r, id: uid(), amount: Math.abs(Number(r.amount) || 0), priorAmount: r.priorAmount != null ? Number(r.priorAmount) : null, currency: /^[A-Za-z]{3}$/.test(r.currency ?? "") ? (r.currency as string).toUpperCase() : fileCur }));
 }
 
 export async function liveAudit(s: Settings, charges: Charge[]): Promise<Finding[]> {
   const out = await chat(
     s,
     s.reasonModel,
-    "You are a forensic billing auditor. Return ONLY a JSON array of objects {chargeId,status:'clear'|'review'|'high',reason,details:string[],overcharge:number} for every charge. Flag duplicates, price hikes vs priorAmount, and hidden fees.",
+    "You are a forensic billing auditor. Return ONLY a JSON array of objects {chargeId,status:'clear'|'review'|'high',reason,details:string[],overcharge:number} for every charge. Flag duplicates, price hikes vs priorAmount, and hidden fees. Each charge has a currency field — quote amounts in that currency in your reasons and details.",
     JSON.stringify(charges),
   );
   const m = out.match(/\[[\s\S]*\]/);
@@ -204,7 +240,7 @@ export async function liveAudit(s: Settings, charges: Charge[]): Promise<Finding
 }
 
 export async function liveLetter(s: Settings, c: Charge, f: Finding) {
-  return chat(s, s.reasonModel, "Write a polite, professional dispute letter to a merchant asking them to review or refund a charge. Plain text with placeholders for sender name/address.", JSON.stringify({ charge: c, finding: f }));
+  return chat(s, s.reasonModel, "Write a polite, professional dispute letter to a merchant asking them to review or refund a charge. State all amounts in the charge's currency using its proper symbol (e.g. € for EUR, £ for GBP). Plain text with placeholders for sender name/address.", JSON.stringify({ charge: c, finding: f }));
 }
 
 export type Trend = {

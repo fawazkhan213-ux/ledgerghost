@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
   type Charge, type Finding, type Settings, type Status, type Trend, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
-  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid, mockTrends, liveTrends,
+  sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid, mockTrends, liveTrends, fmtMoney,
 } from "@/lib/ledger";
 
 export const Route = createFileRoute("/")({
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Step = "home" | "review" | "results";
-const money = (n: number) => `$${n.toFixed(2)}`;
+const money = (n: number, currency?: string) => fmtMoney(n, currency);
 
 type AuditRecord = { id: string; at: number; source: string; charges: Charge[]; findings: Finding[] };
 const loadHistory = (): AuditRecord[] => { try { return JSON.parse(localStorage.getItem("lg-history") ?? "[]"); } catch { return []; } };
@@ -262,7 +262,7 @@ function Home({ busy, settings, onSample, onLoaded, history, onOpenRecord, onDel
                   <button onClick={() => onOpenRecord(r)} className="min-w-0 flex-1 text-left">
                     <p className="truncate font-medium">{r.source}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(r.at).toLocaleString()} · {r.charges.length} charges · {flagged.length ? `${flagged.length} flagged · ${money(savings)} recoverable` : "all clear"}
+                      {new Date(r.at).toLocaleString()} · {r.charges.length} charges · {flagged.length ? `${flagged.length} flagged · ${money(savings, r.charges[0]?.currency)} recoverable` : "all clear"}
                     </p>
                   </button>
                   {flagged.length > 0 && <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">{flagged.length} flagged</span>}
@@ -288,7 +288,7 @@ function Review({ charges, setCharges, source, busy, onRun, onBack }: { charges:
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to upload</button>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div><h2 className="text-2xl font-bold">Review extracted charges</h2><p className="text-sm text-muted-foreground">{source} · {charges.length} items · {money(total)}</p></div>
+        <div><h2 className="text-2xl font-bold">Review extracted charges</h2><p className="text-sm text-muted-foreground">{source} · {charges.length} items · {money(total, charges[0]?.currency)}</p></div>
         <div className="flex gap-2">
           <button onClick={add} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-2 text-sm hover:bg-secondary"><Plus className="h-4 w-4" /> Add charge</button>
           <button onClick={onRun} disabled={busy || !charges.length} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
@@ -347,9 +347,9 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Edit charges</button>
       <h2 className="text-2xl font-bold">Audit findings</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Stat label="Total audited" value={money(total)} sub={`${charges.length} charges`} />
+        <Stat label="Total audited" value={money(total, charges[0]?.currency)} sub={`${charges.length} charges`} />
         <Stat label="Potential overcharges" value={String(flagged.length)} sub={`${findings.filter((f) => f.status === "high").length} high risk`} tone="destructive" />
-        <Stat label="Savings opportunity" value={money(savings)} sub={`≈ ${money(savings * 12)}/yr if recurring`} tone="primary" />
+        <Stat label="Savings opportunity" value={money(savings, charges[0]?.currency)} sub={`≈ ${money(savings * 12, charges[0]?.currency)}/yr if recurring`} tone="primary" />
       </div>
       <PriceWatch charges={charges} settings={settings} />
       <div className="mt-6 flex gap-1 text-sm">
@@ -363,7 +363,7 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
               <p className="truncate text-sm text-muted-foreground">{c.description}</p>
               {f.status !== "clear" && <p className="mt-1 text-sm">{f.reason}</p>}
             </button>
-            <span className="font-mono font-medium">{money(c.amount)}</span>
+            <span className="font-mono font-medium">{money(c.amount, c.currency)}</span>
             {f.status !== "clear" && <button onClick={() => setLetterFor(c.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><FileText className="h-4 w-4" /> Draft dispute</button>}
           </div>
         ); })}
@@ -376,7 +376,7 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
             <div className="space-y-5">
               <div><Badge s={f.status} /><h3 className="mt-2 text-xl font-semibold">{openC.merchant}</h3><p className="text-sm text-muted-foreground">{openC.description}</p></div>
               <dl className="grid grid-cols-2 gap-3 text-sm">
-                {[["Date", openC.date], ["Category", openC.category], ["Amount", money(openC.amount)], ["Prior period", openC.priorAmount != null ? money(openC.priorAmount) : "—"]].map(([k, v]) => (
+                {[["Date", openC.date], ["Category", openC.category], ["Amount", money(openC.amount, openC.currency)], ["Prior period", openC.priorAmount != null ? money(openC.priorAmount, openC.currency) : "—"]].map(([k, v]) => (
                   <div key={k} className="rounded-lg bg-secondary/60 p-3"><dt className="text-xs text-muted-foreground">{k}</dt><dd className="font-mono">{v}</dd></div>
                 ))}
               </dl>
@@ -386,7 +386,7 @@ function Results({ charges, findings, settings, onBack }: { charges: Charge[]; f
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">{f.details.map((d) => <li key={d}>{d}</li>)}</ul>
               </div>
               {f.status !== "clear" && <>
-                <p className="text-sm">Estimated recoverable: <span className="font-mono font-semibold text-primary">{money(f.overcharge)}</span></p>
+                <p className="text-sm">Estimated recoverable: <span className="font-mono font-semibold text-primary">{money(f.overcharge, openC?.currency)}</span></p>
                 <button onClick={() => { setLetterFor(openC.id); setOpen(null); }} className="w-full rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground">Draft dispute letter</button>
               </>}
             </div>
@@ -427,7 +427,7 @@ function PriceWatch({ charges, settings }: { charges: Charge[]; settings: Settin
                 <div className="min-w-0"><p className="truncate font-medium">{t.merchant}</p><p className="truncate text-xs text-muted-foreground">{t.service}</p></div>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${t.verdict === "stable" ? "bg-secondary text-muted-foreground" : "bg-destructive/15 text-destructive"}`}>{label[t.verdict] ?? t.verdict}{t.changePct ? ` +${Math.round(t.changePct)}%` : ""}</span>
               </div>
-              <Spark data={t.history} />
+              <Spark data={t.history} currency={charges[0]?.currency} />
               <p className="text-sm">{t.insight}</p>
               <p className="mt-1 text-xs text-muted-foreground">💡 {t.tip}</p>
             </div>
@@ -437,14 +437,14 @@ function PriceWatch({ charges, settings }: { charges: Charge[]; settings: Settin
   );
 }
 
-function Spark({ data }: { data: { month: string; price: number }[] }) {
+function Spark({ data, currency }: { data: { month: string; price: number }[]; currency?: string | undefined }) {
   const ps = data.map((d) => Number(d.price) || 0);
   const min = Math.min(...ps), max = Math.max(...ps), r = max - min || 1;
   const pts = ps.map((p, i) => `${(i / Math.max(ps.length - 1, 1)) * 100},${30 - ((p - min) / r) * 24 - 3}`).join(" ");
   return (
     <div className="my-2">
       <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="h-10 w-full"><polyline points={pts} fill="none" stroke="var(--primary)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" /></svg>
-      <div className="flex justify-between font-mono text-[10px] text-muted-foreground"><span>{data[0]?.month} {money(ps[0] ?? 0)}</span><span>{data.at(-1)?.month} {money(ps.at(-1) ?? 0)}</span></div>
+      <div className="flex justify-between font-mono text-[10px] text-muted-foreground"><span>{data[0]?.month} {money(ps[0] ?? 0, currency)}</span><span>{data.at(-1)?.month} {money(ps.at(-1) ?? 0, currency)}</span></div>
     </div>
   );
 }
