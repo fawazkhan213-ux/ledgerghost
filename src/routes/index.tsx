@@ -70,18 +70,18 @@ function App() {
   }, [dark]);
   const saveSettings = (s: Settings) => { setSettings(s); localStorage.setItem("lg-settings", JSON.stringify(s)); };
 
-  const runAudit = async (list = charges) => {
+  const runAudit = async (list = charges, source = sourceName) => {
     setBusy(true); setError("");
     try {
       await new Promise((r) => setTimeout(r, 1100));
       const f = settings.mock ? mockAudit(list) : await liveAudit(settings, list);
       setFindings(f); setStep("results");
-      saveRecord(sourceName || "Untitled audit", list, f);
+      saveRecord(source || "Untitled audit", list, f);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
 
-  const trySample = () => { const s = sampleCharges(); setSourceName("Sample statement — Sept 2026"); setCharges(s); runAudit(s); };
+  const trySample = () => { const s = sampleCharges(); setSourceName("Sample statement — Sept 2026"); setCharges(s); runAudit(s, "Sample statement — Sept 2026"); };
 
   return (
     <div className="min-h-screen">
