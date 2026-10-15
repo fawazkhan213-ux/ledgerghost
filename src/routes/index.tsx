@@ -379,6 +379,7 @@ function Results({ charges, findings, settings, source, onBack }: { charges: Cha
   const [open, setOpen] = useState<string | null>(null);
   const [letterFor, setLetterFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "flagged">("all");
+  const [pdfBusy, setPdfBusy] = useState(false);
   const map = useMemo(() => new Map(findings.map((f) => [f.chargeId, f])), [findings]);
   const flagged = findings.filter((f) => f.status !== "clear");
   const total = charges.reduce((s, c) => s + c.amount, 0);
