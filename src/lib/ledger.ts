@@ -163,7 +163,77 @@ table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #eee;pad
 <p class="muted" style="margin-top:24px">Findings are automated estimates. Verify with your merchant before disputing.</p></body></html>`;
 }
 
-const FEE_RX = /(surcharge|recovery|regulatory|administrative|admin fee|service fee|convenience|processing|maintenance fee|delivery fee|service & delivery|facility)/i;
+export async function buildAuditPdf(charges: Charge[], findings: Finding[], source: string): Promise<Uint8Array> {
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const m = new Map(findings.map((f) => [f.chargeId, f]));
+  const cur = charges[0]?.currency;
+  const flagged = findings.filter((f) => f.status !== "clear");
+  const total = charges.reduce((s, c) => s + c.amount, 0);
+  const savings = flagged.reduce((s, f) => s + f.overcharge, 0);
+  const label = { high: "HIGH RISK", review: "NEEDS REVIEW", clear: "CLEAR" } as const;
+  const colors = { high: rgb(0.64, 0, 0), review: rgb(0.48, 0.34, 0), clear: rgb(0.09, 0.39, 0.17), ink: rgb(0.1, 0.1, 0.1), muted: rgb(0.42, 0.42, 0.42) };
+
+  // Standard PDF fonts only support WinAnsi — swap unsupported glyphs
+  const safe = (s: string) => s.replace(/→/g, "->").replace(/≈/g, "~").replace(/·/g, "-").replace(/[–—]/g, "-").replace(/€/g, "EUR ").replace(/£/g, "GBP ").replace(/₹/g, "INR ").replace(/¥/g, "JPY ").replace(/•/g, "-").replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
+  const W = 595, H = 842, MX = 48;
+  let page = doc.addPage([W, H]);
+  let y = H - 60;
+  const ensure = (need: number) => { if (y - need < 50) { page = doc.addPage([W, H]); y = H - 60; } };
+  const wrap = (text: string, size: number, f = font, maxW = W - MX * 2) => {
+    const words = safe(text).split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let line = "";
+    for (const w of words) {
+      const t = line ? `${line} ${w}` : w;
+      if (f.widthOfTextAtSize(t, size) > maxW && line) { lines.push(line); line = w; } else line = t;
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : [""];
+  };
+  const para = (text: string, size = 10, f = font, color = colors.ink, gap = 4) => {
+    for (const line of wrap(text, size, f)) {
+      ensure(size + 4);
+      page.drawText(line, { x: MX, y, size, font: f, color });
+      y -= size + gap;
+    }
+  };
+
+  page.drawText(safe("LedgerGhost Audit Report"), { x: MX, y, size: 20, font: bold, color: colors.ink });
+  y -= 18;
+  para(`${source} · generated ${new Date().toLocaleString()}`, 9, font, colors.muted);
+  y -= 8;
+  para(`Total audited: ${fmtMoney(total, cur)} across ${charges.length} charges`, 11, bold);
+  para(`Flagged charges: ${flagged.length} (${findings.filter((f) => f.status === "high").length} high risk)`, 11, bold);
+  para(`Savings opportunity: ${fmtMoney(savings, cur)}  (~${fmtMoney(savings * 12, cur)}/yr if recurring)`, 11, bold);
+  y -= 10;
+
+  for (const c of charges) {
+    const f = m.get(c.id);
+    const st = f?.status ?? "clear";
+    ensure(60);
+    page.drawText(safe(`${c.date}  ${c.merchant}`), { x: MX, y, size: 11, font: bold, color: colors.ink });
+    const amt = safe(fmtMoney(c.amount, c.currency));
+    page.drawText(amt, { x: W - MX - bold.widthOfTextAtSize(amt, 11), y, size: 11, font: bold, color: colors.ink });
+    y -= 14;
+    page.drawText(label[st], { x: MX, y, size: 8, font: bold, color: colors[st] });
+    y -= 12;
+    if (c.description) para(c.description, 9, font, colors.muted, 3);
+    if (f && st !== "clear") {
+      para(f.reason, 9);
+      for (const d of f.details) para(`• ${d}`, 9, font, colors.muted, 3);
+      if (f.overcharge > 0) para(`Potential overcharge: ${fmtMoney(f.overcharge, c.currency)}`, 9, bold);
+    }
+    y -= 8;
+  }
+  ensure(30);
+  para("Findings are automated estimates. Verify with your merchant before disputing.", 8, font, colors.muted);
+  return doc.save();
+}
+
+const FEE_RX =  /(surcharge|recovery|regulatory|administrative|admin fee|service fee|convenience|processing|maintenance fee|delivery fee|service & delivery|facility)/i;
 
 export function mockAudit(charges: Charge[]): Finding[] {
   return charges.map((c) => {

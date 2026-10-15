@@ -12,7 +12,7 @@ import {
 import {
   type Charge, type Finding, type Settings, type Status, type Trend, DEFAULT_SETTINGS, PARSE_MODELS, REASON_MODELS,
   sampleCharges, mockAudit, draftLetter, parseCSV, liveAudit, liveLetter, liveParse, extractPdfText, uid, mockTrends, liveTrends, fmtMoney,
-  type Scenario, SCENARIOS, scenarioCharges, auditCSV, auditReportHTML,
+  type Scenario, SCENARIOS, scenarioCharges, auditCSV, buildAuditPdf,
 } from "@/lib/ledger";
 
 export const Route = createFileRoute("/")({
@@ -363,10 +363,23 @@ function exportFile(content: string, name: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function deliverBlob(blob: Blob, filename: string) {
+  const file = new File([blob], filename, { type: blob.type });
+  const touch = matchMedia("(pointer: coarse)").matches;
+  if (touch && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return; }
+    catch (e) { if ((e as DOMException).name === "AbortError") return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
 function Results({ charges, findings, settings, source, onBack }: { charges: Charge[]; findings: Finding[]; settings: Settings; source: string; onBack: () => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const [letterFor, setLetterFor] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "flagged">("all");
+  const [pdfBusy, setPdfBusy] = useState(false);
   const map = useMemo(() => new Map(findings.map((f) => [f.chargeId, f])), [findings]);
   const flagged = findings.filter((f) => f.status !== "clear");
   const total = charges.reduce((s, c) => s + c.amount, 0);
@@ -384,7 +397,17 @@ function Results({ charges, findings, settings, source, onBack }: { charges: Cha
         <h2 className="text-2xl font-bold">Audit findings</h2>
         <div className="flex gap-2">
           <button onClick={() => exportFile(auditCSV(charges, findings), "ledgerghost-audit.csv", "text/csv")} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><Download className="h-4 w-4" /> CSV</button>
-          <button onClick={() => { const w = window.open("", "_blank"); if (w) { w.document.write(auditReportHTML(charges, findings, source)); w.document.close(); } else exportFile(auditReportHTML(charges, findings, source), "ledgerghost-report.html", "text/html"); }} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary"><FileText className="h-4 w-4" /> Report / PDF</button>
+          <button
+            disabled={pdfBusy}
+            onClick={async () => {
+              setPdfBusy(true);
+              try {
+                const bytes = await buildAuditPdf(charges, findings, source);
+                await deliverBlob(new Blob([bytes as unknown as BlobPart], { type: "application/pdf" }), "ledgerghost-report.pdf");
+              } finally { setPdfBusy(false); }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-secondary disabled:opacity-50"
+          ><FileText className="h-4 w-4" /> {pdfBusy ? "Building…" : "Report PDF"}</button>
         </div>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
