@@ -1,8 +1,9 @@
 # Ledgerghost 
 
-Build LedgerGhost, an autonomous agent app that audits financial statements and invoices to uncover hidden fees, creeping subscription costs, and unexpected charges, and drafts dispute letters to merchants.
+LedgerGhost, an autonomous agent app that audits financial statements and invoices to uncover hidden fees, creeping subscription costs, and unexpected charges, and drafts dispute letters to merchants.
 
 Key features and screens to include:
+
 1. Home / Audit Launcher:
    - Clear value proposition explaining what LedgerGhost detects (stealth price hikes, duplicate line items, quiet service/recovery fees).
    - "Try Sample Statement Audit" button (pre-loaded with realistic sample charges featuring unexpected fees like a sneaky telecom surcharge, a quiet SaaS plan bump, and a hidden delivery fee) for instant 1-click judging demos.
