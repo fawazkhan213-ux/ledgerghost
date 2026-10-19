@@ -1,4 +1,4 @@
-# Ledgerghost
+# Ledgerghost 
 
 Build LedgerGhost, an autonomous agent app that audits financial statements and invoices to uncover hidden fees, creeping subscription costs, and unexpected charges, and drafts dispute letters to merchants.
 
@@ -29,13 +29,3 @@ Clean, modern financial fintech aesthetic with dark/light mode support, responsi
 
 **Live app**: https://ledgerghost.lovable.app
 
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
